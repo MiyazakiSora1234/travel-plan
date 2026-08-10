@@ -1,0 +1,95 @@
+package com.travelplan.trip.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.travelplan.common.exception.BusinessRuleException;
+import com.travelplan.trip.dto.request.CreateTripRequest;
+import com.travelplan.trip.dto.response.TripResponse;
+import com.travelplan.trip.entity.Trip;
+import com.travelplan.trip.repository.TripRepository;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+// TripServiceの単体テスト（Repositoryはモック化）
+@ExtendWith(MockitoExtension.class)
+class TripServiceTest {
+
+    @Mock
+    private TripRepository tripRepository;
+
+    private TripService tripService;
+
+    @BeforeEach
+    void setUp() {
+        tripService = new TripService(tripRepository);
+    }
+
+    /** EntityはSetterを持たないため、テスト用にリフレクションでDB採番相当の値を設定する。 */
+    private static Trip persistedTrip(String name, LocalDate startDate, LocalDate endDate, String memo, long id) {
+        Trip trip = new Trip(name, startDate, endDate, memo);
+        ReflectionTestUtils.setField(trip, "id", id);
+        ReflectionTestUtils.setField(trip, "createdAt", OffsetDateTime.now());
+        ReflectionTestUtils.setField(trip, "updatedAt", OffsetDateTime.now());
+        return trip;
+    }
+
+    @Test
+    void 旅行計画を登録できる() {
+        CreateTripRequest request = new CreateTripRequest(
+                "東京・京都旅行",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 5),
+                "寺社巡りをする");
+
+        Trip saved = persistedTrip("東京・京都旅行", request.startDate(), request.endDate(), request.memo(), 1L);
+        when(tripRepository.save(any(Trip.class))).thenReturn(saved);
+
+        TripResponse response = tripService.createTrip(request);
+
+        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.name()).isEqualTo("東京・京都旅行");
+        assertThat(response.startDate()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(response.endDate()).isEqualTo(LocalDate.of(2026, 9, 5));
+
+        ArgumentCaptor<Trip> captor = ArgumentCaptor.forClass(Trip.class);
+        verify(tripRepository).save(captor.capture());
+        assertThat(captor.getValue().getName()).isEqualTo("東京・京都旅行");
+    }
+
+    @Test
+    void 終了日が開始日より前だと例外になる() {
+        CreateTripRequest request = new CreateTripRequest(
+                "無効な旅行",
+                LocalDate.of(2026, 9, 5),
+                LocalDate.of(2026, 9, 1),
+                null);
+
+        assertThatThrownBy(() -> tripService.createTrip(request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("終了日");
+    }
+
+    @Test
+    void 開始日と終了日が同じ日でも登録できる() {
+        LocalDate sameDay = LocalDate.of(2026, 9, 1);
+        CreateTripRequest request = new CreateTripRequest("日帰り旅行", sameDay, sameDay, null);
+
+        Trip saved = persistedTrip("日帰り旅行", sameDay, sameDay, null, 2L);
+        when(tripRepository.save(any(Trip.class))).thenReturn(saved);
+
+        TripResponse response = tripService.createTrip(request);
+
+        assertThat(response.startDate()).isEqualTo(response.endDate());
+    }
+}

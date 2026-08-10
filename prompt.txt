@@ -1,0 +1,201 @@
+現在の実装を、**動作を壊さずにコード品質・保守性の観点でリファクタリングしてください。**
+
+単にファイルを分割するのではなく、以下の方針でコード全体をレビューしてください。
+
+### 最優先
+
+1. Backendを機能単位（feature/package by feature）に整理する
+2. Controller / Service / Repository / Entity / DTOの責務を明確にする
+3. EntityをAPIレスポンスとして直接返さない
+4. Entityに不要なSetterを公開しない
+5. Frontendもtrips機能を`features/trips`内に閉じ込める
+6. API通信をReact Componentから分離する
+7. TanStack Queryをserver state管理に正しく利用する
+8. React Hook Form + Zodでフォームを管理する
+9. BackendでもBean Validationを行う
+10. DBにも`CHECK (start_date <= end_date)`を設定する
+11. DB MigrationとJPAの責務を明確にする
+12. エラーレスポンス形式を統一する
+13. Docker環境でFrontend → Backend → PostgreSQLが正常に通信できることを確認する
+
+### Backend
+
+以下のような構成を基本としてください。
+
+```text
+com.travelplan
+├── trip
+│   ├── controller
+│   ├── service
+│   ├── repository
+│   ├── entity
+│   └── dto
+│       ├── request
+│       └── response
+├── common
+│   ├── exception
+│   └── response
+└── config
+```
+
+ただし、現在のコードを確認したうえで、より良い構成があれば理由を説明して採用してください。
+
+Controllerには業務ロジックを書かないでください。
+
+RepositoryをControllerから直接呼び出さないでください。
+
+EntityをそのままJSONレスポンスにしないでください。
+
+Entityには原則として不要な`@Setter`を付けないでください。
+
+### Frontend
+
+以下を基本構成としてください。
+
+```text
+src/
+├── app/
+├── features/
+│   └── trips/
+│       ├── api/
+│       ├── components/
+│       ├── hooks/
+│       ├── schemas/
+│       └── types/
+├── pages/
+├── routes/
+└── lib/
+```
+
+Pageは画面の組み立てに集中させ、
+
+```text
+Page
+ ↓
+Feature Component
+ ↓
+Custom Hook
+ ↓
+API function
+ ↓
+Axios
+```
+
+という責務分離を意識してください。
+
+API通信を`useEffect`に直接書かないでください。
+
+MutationはTanStack Queryの`useMutation`を利用してください。
+
+Axiosインスタンスは`lib/apiClient.ts`などに集約してください。
+
+### DB
+
+以下の制約を追加してください。
+
+```sql
+CONSTRAINT chk_trips_date_range
+    CHECK (start_date <= end_date)
+```
+
+DBに保存されるデータ自身が不正にならないようにしてください。
+
+また、`updated_at`がUPDATE時にも正しく更新されることを確認してください。
+
+### エラーハンドリング
+
+`@RestControllerAdvice`を利用し、APIのエラーレスポンスを統一してください。
+
+内部例外、SQL、スタックトレースなどをクライアントへ返さないでください。
+
+### セキュリティ
+
+以下を確認してください。
+
+* SQL Injection
+* XSS
+* CORS
+* Secretsのハードコード
+* エラーレスポンスによる内部情報漏洩
+* DBユーザー権限
+* `.env`のGit管理防止
+
+### コード品質
+
+以下は禁止です。
+
+* 巨大Controller
+* 巨大React Component
+* Entityの直接Response
+* ControllerからRepository直接呼び出し
+* `any`の乱用
+* API URLのハードコード
+* `useEffect`による登録API実行
+* 不要なグローバルstate
+* 重複したバリデーションロジック
+* 不要な抽象化
+* 目的のないUtilityクラス
+* 目的のないinterface大量作成
+
+### 重要
+
+**過剰設計は禁止です。**
+
+今回のアプリはまだ旅行計画登録だけです。
+
+DDDを完全導入したり、Clean Architectureを過剰に適用したり、不要なRepository interfaceを作ったりしないでください。
+
+「小規模ではシンプル、中規模になったら自然に拡張できる」というバランスを取ってください。
+
+---
+
+## 実施手順
+
+いきなり変更せず、最初に現在のコードをレビューしてください。
+
+以下を出してください。
+
+1. 現在の問題点
+2. 優先度（Critical / High / Medium / Low）
+3. リファクタリング方針
+4. 変更予定ファイル
+5. 変更によるメリット
+6. リスク
+
+その後、実際にリファクタリングしてください。
+
+リファクタリング後は、
+
+```bash
+docker compose build
+docker compose up
+```
+
+で起動確認し、
+
+Backend:
+
+```bash
+./gradlew test
+```
+
+Frontend:
+
+```bash
+npm run test
+npm run build
+```
+
+を実行してください。
+
+テスト・ビルドが失敗した場合は、原因を特定して修正してください。
+
+最後に、
+
+* 変更したファイル
+* 変更内容
+* 設計上の判断
+* テスト結果
+* 今後改善するなら何をするか
+
+を報告してください。
