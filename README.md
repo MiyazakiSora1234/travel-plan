@@ -274,13 +274,17 @@ npm run test
 push to main
   → [test]           Frontend(lint/test/build) + Backend(test/build)
   → [build-and-push]  Docker Image（backend/frontend）をビルドし、GHCRへ commit SHA タグでPush
-  → [deploy]          SSHでEC2へ接続 → Image pull → docker compose up -d → Health Check
+  → [deploy]          checkout → SCPで本番ファイルをEC2へ配置 → SSHでEC2へ接続
+                        → Image pull → docker compose up -d → Health Check
+                        → 成功: CURRENT_IMAGE_TAG更新 / 失敗: 直前タグへ自動ロールバック
 ```
 
 - テストが1つでも失敗すれば、以降のビルド・Push・デプロイは実行されない（`needs:` による依存関係）
 - `main` へのPull Requestでは `.github/workflows/ci.yml` によりテストのみ実行され、デプロイは行われない。featureブランチ単体のpushではどちらのworkflowも動かない
 - テストのロジックは `.github/workflows/test.yml`（再利用ワークフロー）に集約し、CIとDeployの両方から呼び出している
-- EC2上では **ビルドを一切行わない**。EC2が実行するのは「Imageのpull」「コンテナ起動」「Health Check」のみ
+- **EC2上にはリポジトリ全体をcloneしない**。`deploy` jobは `actions/checkout@v4` でGitHub Actions runner上にリポジトリを取得し、そこから `appleboy/scp-action` で `compose.prod.yml` と `docker/postgres/initdb/` だけをEC2の `/opt/travel-plan` へ都度転送する（runner → EC2 の一方向。EC2上には転送元のファイルが存在しないため、EC2側からscpすることはできない）
+- SCP転送後、`appleboy/ssh-action` でEC2へSSH接続し、同一セッション内でGHCRログイン→pull→起動→Health Check→（必要なら）ロールバック→GHCRログアウトまでを実行する
+- EC2上では **ビルドを一切行わない**。EC2が実行するのは「本番ファイルの受け取り」「Imageのpull」「コンテナ起動」「Health Check」のみ
 - Imageには必ず `git commit SHA` をタグ付けする（`latest` は補助的に付与するのみで、デプロイでは常にSHAタグを使用）。これによりロールバックが可能になる
 
 ### 必要なGitHub Secrets
@@ -307,20 +311,24 @@ sudo curl -SL "https://github.com/docker/compose/releases/download/${DOCKER_COMP
   -o /usr/libexec/docker/cli-plugins/docker-compose
 sudo chmod +x /usr/libexec/docker/cli-plugins/docker-compose
 
-# 2. アプリ用ディレクトリを作成し、compose.prod.ymlとpostgres初期化スクリプトを配置
+# 2. アプリ用ディレクトリを作成する（compose.prod.ymlとpostgres初期化スクリプトは
+#    リポジトリをcloneせず、deploy.ymlがpushのたびにSCPで自動配置するため、
+#    ディレクトリを空で用意しておくだけでよい）
 sudo mkdir -p /opt/travel-plan
 sudo chown $USER:$USER /opt/travel-plan
-cd /opt/travel-plan
-# compose.prod.yml と docker/postgres/initdb/ を、このリポジトリからコピーしておく
-# （EC2はGitHubからcloneしてもよいし、scpで必要なファイルだけ置いてもよい）
 
-# 3. 本番用.envを作成する（.env.prod.example を参考に値を入れる。Gitには絶対にコミットしない）
+# 3. 本番用.envを作成する（.env.prod.example を参考に値を入れる。Gitには絶対にコミットしない。
+#    compose.prod.ymlはまだ配置されていないが、.envはdeploy.ymlが一切触らないファイルなので
+#    最初のdeployより前にここで作成しておく）
 vi /opt/travel-plan/.env
 
 # 4. SSH公開鍵をauthorized_keysに登録し、対応する秘密鍵をGitHub Secrets `EC2_SSH_KEY` に登録する
 
 # 5. Security Groupで、SSH(22)は自宅/オフィス/GitHub Actions runnerのIPレンジ等、接続元を絞る。
 #    PostgreSQL(5432)はインバウンドを一切開放しない（Compose上も公開していない）
+
+# 6. mainへ最初にpushすると、deploy.ymlが compose.prod.yml と docker/postgres/initdb/ を
+#    /opt/travel-plan へSCPで配置し、続けてdocker compose up -dとHealth Checkが走る
 ```
 
 ### 本番.envの配置
