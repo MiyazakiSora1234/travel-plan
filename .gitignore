@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Secrets / key material (never commit)
+*.pem
+*.key
+
 # Backend (Gradle)
 backend/build/
 backend/.gradle/

@@ -1,413 +1,421 @@
-あなたはシニアDevOpsエンジニア兼テックリードです。
+# GitHub Actions CI/CD構成のレビュー・修正依頼
 
-現在のプロジェクトに、GitHub Actionsを利用したEC2への自動デプロイ（CI/CD）を実装してください。
+対象リポジトリ：
 
-# 前提
+`https://github.com/MiyazakiSora1234/travel-plan.git`
 
-このプロジェクトは以下の構成です。
+## 目的
 
-* Frontend: React + TypeScript + Vite
-* Backend: Spring Boot + Java + Gradle
-* Database: PostgreSQL
-* Frontend / Backend / PostgreSQL はDocker Composeで管理
-* 本番環境はAWS EC2
-* GitHubをソースコード管理に使用
-* Dockerを前提とする
-* 将来的にRDS / ECS等へ移行する可能性があるため、EC2依存の設計にしすぎない
-* 現在はまずEC2 + Docker Composeでシンプルかつ堅牢なCI/CDを構築する
+現在のCI/CDを、以下の設計思想に沿って実際に動作する状態へ修正してください。
 
-# 目的
+### 基本方針
 
-GitHubのmainブランチにpushされたら、
+* `main` ブランチへのpushで本番デプロイ
+* GitHub Actionsでテスト → Docker Image build → GHCR push → EC2 deploy
+* EC2ではDocker Imageのbuildを行わない
+* EC2はGHCRから完成済みImageをpullして起動するだけ
+* Docker Imageには必ずGit commit SHAをタグとして付与する
+* `latest` は補助的に付与してよいが、本番デプロイには使用しない
+* Health Check成功後のみデプロイ成功とする
+* Health Check失敗時は直前のImage SHAへ自動ロールバックする
+* 本番の秘密情報 `.env` はEC2上だけに配置し、GitHub Actionsから作成・上書きしない
+* EC2にはリポジトリ全体をcloneしない
+* EC2には本番実行に必要なファイルだけをGitHub ActionsからSCPで配置する
+* `compose.prod.yml` やPostgreSQL初期化スクリプトなど、本番構成に必要なファイルはGitリポジトリで管理する
 
-1. GitHub Actionsが起動
-2. Frontendのテスト・ビルドを実行
-3. Backendのテストを実行
-4. Backend / FrontendのDocker Imageをビルド
-5. GitHub Container Registry（GHCR）へImageをPush
-6. GitHub ActionsからSSHでEC2へ接続
-7. EC2上で対象Imageをpull
-8. Docker Composeでコンテナを更新
-9. BackendのHealth Checkを実行
-10. 正常ならデプロイ成功
-11. 異常ならデプロイ失敗として終了
+---
 
-という流れにしてください。
+## 現在想定しているEC2構成
 
-# 重要な設計方針
+EC2上は最終的に以下のようにする。
 
-## 1. EC2上でビルドしない
+```text
+/opt/travel-plan/
+├── compose.prod.yml
+├── .env
+├── CURRENT_IMAGE_TAG
+└── docker/
+    └── postgres/
+        └── initdb/
+```
 
-EC2では以下を実行しないでください。
+### Git管理
 
-* npm install
-* npm run build
-* ./gradlew build
-* docker build
+以下はGitで管理する。
 
-ビルドはGitHub Actions側で完結させます。
-
-EC2は基本的に、
-
-* Docker Imageをpull
-* コンテナを起動
-* Health Check
-
-だけを担当します。
-
-## 2. Docker Imageを成果物として扱う
-
-GitHub Actionsで作成したImageには、必ずGit commit SHAをタグとして付けてください。
-
-例:
-
-ghcr.io/OWNER/REPOSITORY/backend:${GITHUB_SHA}
-ghcr.io/OWNER/REPOSITORY/frontend:${GITHUB_SHA}
-
-`latest`だけに依存する設計は禁止します。
-
-理由は、ロールバック可能なデプロイにするためです。
-
-## 3. secretsをハードコードしない
-
-以下をソースコードに直接書かないでください。
-
-* EC2のIP
-* SSH秘密鍵
-* DBパスワード
-* GHCR認証情報
-* API Secret
-* AWS Secret
-
-GitHub ActionsではGitHub Secretsを使用してください。
-
-想定するSecret:
-
-* EC2_HOST
-* EC2_USER
-* EC2_SSH_KEY
-
-GHCRについては、可能ならGitHub Actions標準のGITHUB_TOKENを利用してください。
-
-## 4. 本番.envをGit管理しない
-
-EC2上に本番用.envを配置する方式にしてください。
-
-例:
-
-/opt/travel-plan/.env
-
-このファイルはGitHub Actionsから上書きしないでください。
-
-DB接続情報などの本番環境固有値はEC2側で管理します。
-
-## 5. Docker Composeを本番用に分離
-
-現在のcompose.ymlを確認してください。
-
-開発環境と本番環境で設定が異なる場合、
-
-compose.yml
+```text
 compose.prod.yml
+docker/postgres/initdb/*
+.env.prod.example
+.github/workflows/*
+Dockerfile等
+```
 
-のように分離してください。
+### Git管理しない
 
-本番用ComposeではImageを直接指定できる構成にしてください。
+以下は絶対にGitへコミットしない。
 
-例えば、
+```text
+.env
+*.pem
+*.key
+DBパスワード
+GHCR等の認証情報
+```
 
+---
+
+# 重要：現在のdeploy.ymlの問題を修正する
+
+現在のdeploy処理では、SSHでEC2へ接続した後に、
+
+```bash
+scp compose.prod.yml ec2:/opt/travel-plan/
+scp -r docker/postgres/initdb ec2:/opt/travel-plan/docker/postgres/
+```
+
+としている。
+
+これは誤り。
+
+SSH接続後のEC2上には、GitHub Actions runnerのリポジトリファイルが存在しないため、EC2からscpするのではなく、**GitHub Actions runnerからEC2へSCPすること。**
+
+したがって、以下の2段階に分ける。
+
+```text
+GitHub Actions runner
+        │
+        │ SCP
+        ▼
+      EC2
+        │
+        │ SSH
+        ▼
+docker compose pull/up
+Health Check
+```
+
+GitHub Actionsでは `actions/checkout@v4` を使用してリポジトリを取得し、その後 `appleboy/scp-action` 等を利用して必要なファイルだけをEC2へ転送する。
+
+---
+
+# Deploy Jobの要件
+
+`deploy` jobは以下の順番にする。
+
+```text
+1. checkout
+2. production用ファイルをEC2へSCP
+3. SSHでEC2へ接続
+4. GHCRへログイン
+5. 現在稼働中のIMAGE_TAGを保存
+6. 新しいIMAGE_TAGをexport
+7. docker compose pull
+8. docker compose up -d
+9. Health Check
+10. 成功 → CURRENT_IMAGE_TAG更新
+11. 失敗 → PREV_TAGへロールバック
+12. docker logout
+```
+
+---
+
+# GitHub Secrets
+
+以下を利用する。
+
+```text
+EC2_HOST
+EC2_USER
+EC2_SSH_KEY
+```
+
+意味：
+
+```text
+EC2_HOST      = EC2のホスト/IP
+EC2_USER      = ec2-user
+EC2_SSH_KEY   = SSH秘密鍵PEMの中身
+```
+
+GitHub Actionsの `GITHUB_TOKEN` はGHCRへの認証に使用する。
+
+追加のGHCR用長期Secretは可能な限り作らない。
+
+---
+
+# GitHub Variables
+
+Frontendのビルド時に必要なAPI URLはRepository Variablesを使用する。
+
+```text
+VITE_API_BASE_URL
+```
+
+例：
+
+```text
+http://52.199.123.9:8080
+```
+
+これは機密情報ではないためSecretにはしない。
+
+Viteの仕様上、ビルド時に値がFrontend bundleへ埋め込まれることを考慮すること。
+
+---
+
+# Docker Image
+
+Image名は以下。
+
+```text
+ghcr.io/miyazakisora1234/travel-plan/backend
+ghcr.io/miyazakisora1234/travel-plan/frontend
+```
+
+タグ：
+
+```text
+${{ github.sha }}
+```
+
+および補助的に、
+
+```text
+latest
+```
+
+を付与する。
+
+ただし本番Deployでは必ず、
+
+```text
+:${{ github.sha }}
+```
+
+を利用する。
+
+---
+
+# compose.prod.yml
+
+`compose.prod.yml` はGit管理する。
+
+Image指定は必ずIMAGE_TAGを利用する。
+
+例：
+
+```yaml
 services:
-backend:
-image: ghcr.io/OWNER/REPOSITORY/backend:${IMAGE_TAG}
+  backend:
+    image: ghcr.io/miyazakisora1234/travel-plan/backend:${IMAGE_TAG}
 
-frontend:
-image: ghcr.io/OWNER/REPOSITORY/frontend:${IMAGE_TAG}
+  frontend:
+    image: ghcr.io/miyazakisora1234/travel-plan/frontend:${IMAGE_TAG}
+```
 
-のような形式です。
+実際のリポジトリ構成を確認し、既存の設定を壊さないように修正する。
 
-実際のリポジトリ名・Image名は既存プロジェクトを調査して適切に設定してください。
+---
 
-# GitHub Actionsファイル
+# 本番.env
 
-以下を作成してください。
+EC2上に、
 
-.github/
-└── workflows/
-└── deploy.yml
+```text
+/opt/travel-plan/.env
+```
 
-ただし、既存のGitHub Actionsが存在する場合は、まず内容を確認し、重複するworkflowを作らないでください。
+を手動で作成する。
 
-# Workflowの構成
+例：
 
-deploy.ymlは以下のような段階構成にしてください。
+```env
+POSTGRES_DB=travel_plan
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=<実際の強力なパスワード>
 
-## Job 1: test
+APP_DB_USER=travel_plan_app
+APP_DB_PASSWORD=<実際の強力なパスワード>
 
-Frontend:
+DATABASE_URL=jdbc:postgresql://postgres:5432/travel_plan
 
-* npm ci
-* lint
-* test
-* build
+CORS_ALLOWED_ORIGINS=http://52.199.123.9
 
-Backend:
+SERVER_PORT=8080
+```
 
-* ./gradlew test
-* ./gradlew build
+ただし、実際のSpring Boot / Docker Composeの設定を確認し、環境変数名が一致していることを確認する。
 
-ただし、既存のpackage.json / build.gradleを確認して、実際に存在するnpm scriptやGradle taskだけを使用してください。
+`.env` の実値は絶対に生成・コミットしない。
 
-存在しないコマンドを勝手に追加しないでください。
+`IMAGE_TAG` は `.env` に保存せず、Deploy Jobからexportする。
 
-## Job 2: build-and-push
-
-test成功後に実行。
-
-* GHCR login
-* Backend Docker Image build
-* Frontend Docker Image build
-* Git SHAタグ付与
-* GHCRへPush
-
-可能ならDocker Buildx + GitHub Actions Cacheを使用して、ビルド時間を短縮してください。
-
-## Job 3: deploy
-
-build-and-push成功後に実行。
-
-SSHでEC2へ接続し、
-
-cd /opt/travel-plan
-
-へ移動。
-
-その後、
-
-IMAGE_TAG=${GITHUB_SHA}
-
-を利用して、
-
-docker compose -f compose.prod.yml pull
-docker compose -f compose.prod.yml up -d
-
-を実行してください。
-
-ただし、既存コンテナやCompose構成を確認してから具体的なコマンドを決定してください。
+---
 
 # Health Check
 
-デプロイ後、BackendのHealth Checkを必ず実行してください。
+Backendの、
 
-Spring Boot Actuatorが既に存在するなら、
+```text
+http://localhost:8080/actuator/health
+```
 
-/actuator/health
+を利用する。
 
-を利用してください。
+最大60秒、
 
-存在しない場合は、必要最小限のActuator設定を追加してください。
+```text
+5秒 × 12回
+```
 
-Health Checkは、
+リトライする。
 
-* コンテナが起動した
-* HTTPレスポンスが正常
-* BackendがUP
+以下を確認する。
 
-を確認できるようにしてください。
+```json
+{"status":"UP"}
+```
 
-単にdocker compose up -dが成功しただけでデプロイ成功扱いにしないでください。
+単に、
+
+```bash
+docker compose up -d
+```
+
+が成功しただけではDeploy成功にしない。
+
+---
 
 # ロールバック
 
-可能なら、デプロイ前のIMAGE_TAGを取得しておき、
+Deploy前に、
 
-新しいImageのHealth Checkが失敗した場合、
+```bash
+PREV_TAG="$(cat CURRENT_IMAGE_TAG 2>/dev/null || true)"
+```
 
-直前のImageへ戻す仕組みを実装してください。
+で現在のImage SHAを取得する。
 
-ただし、ロールバック処理が複雑になりすぎる場合は無理に実装せず、
+新ImageのHealth Checkに失敗した場合、
 
-「現在のバージョンを記録する」
-「失敗時に旧IMAGE_TAGでdocker compose up -dできる」
+```bash
+export IMAGE_TAG="$PREV_TAG"
+docker compose -f compose.prod.yml up -d
+```
 
-ところまで実装してください。
+で直前のImageへ戻す。
 
-勝手に危険な自動ロールバック処理を作らないでください。
+成功した場合のみ、
 
-# セキュリティ
+```bash
+echo "$IMAGE_TAG" > CURRENT_IMAGE_TAG
+```
 
-以下を必ず確認してください。
+を実行する。
 
-* SSH秘密鍵をログに出力しない
-* GitHub Secretsをechoしない
-* .envをGitHub Actionsへ転送しない
-* DBパスワードをWorkflowへ直接書かない
-* EC2のDocker daemonを外部公開しない
-* PostgreSQLを0.0.0.0:5432でインターネット公開しない
-* SSHは可能ならSecurity Groupで接続元を制限できる設計にする
-* GHCR Imageをprivate repositoryとして扱える構成を検討する
+---
 
-# Docker
+# セキュリティ要件
 
-既存のDockerfileを必ず確認してください。
+以下を必ず守る。
 
-以下を勝手に作り直さないでください。
+* `.env` をGit管理しない
+* `.pem` をGit管理しない
+* GitHub Actionsのログへ秘密情報を出力しない
+* `GITHUB_TOKEN` をechoしない
+* GHCR logoutを実施する
+* PostgreSQLの5432をSecurity Groupで外部公開しない
+* SSH 22番は可能な限り接続元を制限する
+* CORSに `*` を使用しない
+* Docker build contextに`.env`等の秘密情報が入らないよう`.dockerignore`を確認する
+* 長期的なGHCR Personal Access TokenをEC2へ保存しない
 
-* Dockerfile
-* compose.yml
-* Spring Boot設定
-* React設定
+---
 
-既存構成に問題がある場合は、まず問題点を説明し、CI/CDに必要な最小限の変更だけ実施してください。
+# 重要なレビュー項目
 
-Frontendは本番環境ではVite開発サーバーではなく、可能なら、
+コードを書き換える前に、リポジトリ内の以下を確認する。
 
-React build
-↓
-Nginx
-↓
-静的ファイル配信
+```text
+compose.prod.yml
+docker/backend/Dockerfile
+docker/frontend/Dockerfile.prod
+docker/postgres/initdb/*
+.github/workflows/test.yml
+.github/workflows/ci.yml
+.github/workflows/deploy.yml
+.env.prod.example
+.dockerignore
+```
 
-というマルチステージDocker Imageにしてください。
+特に以下を確認する。
 
-ただし、既存構成を確認した上で実装してください。
+1. `compose.prod.yml` が実際にどのファイルを必要としているか
+2. PostgreSQLのinitdbをどのようにmountしているか
+3. `IMAGE_TAG` が正しくComposeへ渡るか
+4. BackendのPort
+5. FrontendのPort
+6. Health Check URL
+7. CORS設定
+8. Dockerfileのbuild context
+9. `.dockerignore`
+10. GHCR Private Packageへの認証方法
+11. DB migrationの有無
+12. ロールバック時にDB schemaとの不整合が発生しないか
 
-# ブランチ戦略
+---
 
-現在のプロジェクトのブランチ構成を確認してください。
+# 実装上の注意
 
-基本的には、
+単純に既存コードを書き換えるのではなく、まず現在のリポジトリ構成を確認すること。
 
-main
-↓
-production deploy
+既存の設計を尊重し、不要な変更は行わない。
 
-とします。
+特に、
 
-featureブランチではproduction deployを実行しないでください。
+```text
+EC2上でscp
+```
 
-必要なら、
+ではなく、
 
-pull_request:
-branches:
-- main
+```text
+GitHub Actions runner
+    ↓
+SCP
+    ↓
+EC2
+```
 
-でテストだけ実行するworkflowを別途作成してください。
+になっていることを確認する。
 
-# 失敗時の挙動
+また、Deploy Workflow全体がGitHub ActionsのYAMLとして構文的に正しく、`needs` によるJob依存関係が正しく機能することを確認する。
 
-以下の場合はデプロイしないでください。
+最終的に、
 
-* Frontend test failure
-* Backend test failure
-* Docker build failure
-* Docker push failure
+```text
+push main
+ ↓
+test
+ ↓
+build & push GHCR
+ ↓
+SCP production files
+ ↓
+SSH EC2
+ ↓
+GHCR login
+ ↓
+docker compose pull
+ ↓
+docker compose up -d
+ ↓
+Health Check
+ ├─ UP → CURRENT_IMAGE_TAG更新
+ └─ NG → PREV_TAGへrollback
+```
 
-つまり、
+という流れになるように実装してください。
 
-Test
-↓ 成功
-Build
-↓ 成功
-Push
-↓ 成功
-Deploy
-
-という依存関係にしてください。
-
-# 実装前に必ず行うこと
-
-いきなりファイルを作らないでください。
-
-まず以下を調査してください。
-
-1. 現在のディレクトリ構成
-2. package.json
-3. frontend/Dockerfile
-4. backend/build.gradle
-5. backend/Dockerfile
-6. compose.yml
-7. .env.example
-8. .gitignore
-9. Spring Bootのapplication.yml
-10. GitHub Actions既存workflow
-11. README.md
-12. Spring Boot Actuatorの有無
-
-その結果を整理して、
-
-「現在の構成」
-「CI/CD実装に必要な変更」
-「変更しないもの」
-
-を明確にしてください。
-
-その後、実装してください。
-
-# 実装後に確認すること
-
-実装後、以下を確認してください。
-
-* YAML syntax
-* GitHub Actionsのjob dependency
-* GitHub Actionsのpermissions
-* GHCRへのpush権限
-* Docker Image名
-* Docker ComposeのIMAGE_TAG受け渡し
-* EC2のディレクトリ
-* SSH接続設定
-* Health Check
-* .envの扱い
-* ロールバック可能性
-* secretsの漏洩可能性
-
-また、可能な範囲でローカルから、
-
-docker compose config
-
-やDocker build等を利用してCompose/Docker設定に問題がないことを確認してください。
-
-# README
-
-実装後、README.mdに「CI/CD / Deploy」セクションを追加してください。
-
-以下を説明してください。
-
-* GitHub Actionsの仕組み
-* main pushで自動デプロイされること
-* 必要なGitHub Secrets
-* EC2側の初期設定
-* /opt/travel-plan の役割
-* 本番.envの配置
-* GHCRについて
-* Health Check
-* ロールバック方法
-* デプロイ失敗時の確認方法
-
-# 最重要
-
-「動けばいい」CI/CDにはしないでください。
-
-以下を優先してください。
-
-1. セキュリティ
-2. 再現性
-3. ロールバック可能性
-4. 保守性
-5. シンプルさ
-6. デプロイ速度
-
-また、現在のプロジェクトを尊重し、必要以上にアーキテクチャを変更しないでください。
-
-実装前に既存コードを調査し、実際のファイル構成・スクリプト・Docker構成に合わせて実装してください。
-
-最後に、
-
-* 変更したファイル一覧
-* 各ファイルの変更理由
-* GitHub Secrets一覧
-* EC2側で一度だけ実行する初期セットアップコマンド
-* デプロイ手順
-* ロールバック手順
-* 今後ECR/ECS/RDSへ移行する場合のポイント
-
-をまとめて報告してください。
+最後に、変更したファイル一覧と、それぞれの変更理由、GitHub側で必要なSecrets/Variables、EC2で初回だけ実行するコマンドをまとめてください。

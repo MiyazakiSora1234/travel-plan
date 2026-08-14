@@ -5,3 +5,10 @@ backend/.gradle
 **/.git
 **/*.log
 frontend/.env.local
+
+# 秘密情報がbuild contextへ混入しないよう明示的に除外する
+**/.env
+**/.env.*
+!**/.env.*.example
+**/*.pem
+**/*.key
