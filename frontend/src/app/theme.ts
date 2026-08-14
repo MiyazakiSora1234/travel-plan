@@ -14,37 +14,54 @@ const fontFamily = [
 export const theme = createTheme({
   palette: {
     mode: 'light',
+
+    // メインカラー：空・旅行・信頼感
     primary: {
-      main: '#0F766E',
-      light: '#14B8A6',
-      dark: '#0B5750',
+      main: '#2563EB',
+      light: '#60A5FA',
+      dark: '#1D4ED8',
+      contrastText: '#FFFFFF',
     },
+
+    // アクセント：海・爽やかさ
     secondary: {
-      main: '#F97316',
+      main: '#06B6D4',
+      light: '#67E8F9',
+      dark: '#0891B2',
+      contrastText: '#FFFFFF',
     },
+
     background: {
-      default: '#F4F7F6',
+      default: '#F5F9FF',
       paper: '#FFFFFF',
     },
+
     text: {
-      primary: '#1F2937',
-      secondary: '#6B7280',
+      primary: '#172033',
+      secondary: '#64748B',
     },
+
+    divider: '#E2E8F0',
   },
+
   shape: {
     borderRadius: 14,
   },
+
   typography: {
     fontFamily,
+
     h5: {
       fontWeight: 700,
       letterSpacing: '-0.01em',
     },
+
     button: {
       fontWeight: 600,
       textTransform: 'none',
     },
   },
+
   components: {
     MuiPaper: {
       styleOverrides: {
@@ -53,6 +70,7 @@ export const theme = createTheme({
         },
       },
     },
+
     MuiButton: {
       styleOverrides: {
         root: {
@@ -60,22 +78,36 @@ export const theme = createTheme({
           paddingInline: 20,
           paddingBlock: 10,
         },
+
         contained: {
           boxShadow: 'none',
+
           '&:hover': {
-            boxShadow: '0 8px 20px -8px rgba(15, 118, 110, 0.55)',
+            boxShadow:
+              '0 8px 20px -8px rgba(37, 99, 235, 0.55)',
           },
         },
       },
     },
+
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
           borderRadius: 10,
-          backgroundColor: '#FBFCFC',
+          backgroundColor: '#FFFFFF',
+
+          '&:hover .MuiOutlinedInput-notchedOutline': {
+            borderColor: '#93C5FD',
+          },
+
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+            borderColor: '#2563EB',
+            borderWidth: 2,
+          },
         },
       },
     },
+
     MuiInputLabel: {
       styleOverrides: {
         root: {
