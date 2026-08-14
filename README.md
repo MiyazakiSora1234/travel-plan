@@ -263,4 +263,106 @@ npm run test
 - **旅行先管理・ユーザー管理**: `features/` 配下に新しい機能ディレクトリ（例: `features/destinations`）を追加し、Backend側も `entity` / `dto` / `service` / `controller` を機能ごとに追加する
 - **認証**: Backendに `SecurityConfig`（`config/` 配下）を追加し、`WebConfig` のCORS設定と統合する。Frontendは `lib/apiClient.ts` にトークン付与のインターセプターを追加し、認証状態は `app/` 配下でグローバルに管理する
 - **DBスキーマ変更**: 既存マイグレーション（`V1__...`）は変更せず、`V2__add_xxx.sql` のように追加していく
-- **本番ビルド**: Frontendは現在Vite開発サーバーで起動する構成になっているため、本番投入時は `docker/frontend/Dockerfile` をNginx等で静的配信するマルチステージビルドに切り替える
+
+## 12. CI/CD / Deploy
+
+### 仕組み
+
+`main` ブランチへのpushをトリガーに、GitHub Actionsが自動でEC2へデプロイする。
+
+```
+push to main
+  → [test]           Frontend(lint/test/build) + Backend(test/build)
+  → [build-and-push]  Docker Image（backend/frontend）をビルドし、GHCRへ commit SHA タグでPush
+  → [deploy]          SSHでEC2へ接続 → Image pull → docker compose up -d → Health Check
+```
+
+- テストが1つでも失敗すれば、以降のビルド・Push・デプロイは実行されない（`needs:` による依存関係）
+- `main` へのPull Requestでは `.github/workflows/ci.yml` によりテストのみ実行され、デプロイは行われない。featureブランチ単体のpushではどちらのworkflowも動かない
+- テストのロジックは `.github/workflows/test.yml`（再利用ワークフロー）に集約し、CIとDeployの両方から呼び出している
+- EC2上では **ビルドを一切行わない**。EC2が実行するのは「Imageのpull」「コンテナ起動」「Health Check」のみ
+- Imageには必ず `git commit SHA` をタグ付けする（`latest` は補助的に付与するのみで、デプロイでは常にSHAタグを使用）。これによりロールバックが可能になる
+
+### 必要なGitHub Secrets
+
+| Secret | 用途 |
+|---|---|
+| `EC2_HOST` | デプロイ先EC2のホスト名/IP |
+| `EC2_USER` | SSH接続ユーザー |
+| `EC2_SSH_KEY` | SSH秘密鍵（PEM形式） |
+
+GHCRへの認証は上記Secretsとは別に、GitHub Actions標準の `GITHUB_TOKEN` を使用する（追加のSecret登録は不要）。
+
+また、FrontendのビルドにはバックエンドAPIのURL（`VITE_API_BASE_URL`）が必要になる。Viteはこの値をビルド時にバンドルへ埋め込むため、実行時の環境変数では差し替えられない。機密情報ではないため、Secretではなく **Repository variables**（`Settings > Secrets and variables > Actions > Variables`）に `VITE_API_BASE_URL` を登録すること（例: `http://<EC2のIPまたはドメイン>:8080`）。
+
+### EC2側の初期設定（初回のみ）
+
+```bash
+# 1. Docker / Docker Composeプラグインをインストール（Amazon Linux 2023の例）
+sudo dnf install -y docker
+sudo systemctl enable --now docker
+sudo usermod -aG docker $USER
+DOCKER_COMPOSE_VERSION=v2.29.7
+sudo curl -SL "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-linux-$(uname -m)" \
+  -o /usr/libexec/docker/cli-plugins/docker-compose
+sudo chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+# 2. アプリ用ディレクトリを作成し、compose.prod.ymlとpostgres初期化スクリプトを配置
+sudo mkdir -p /opt/travel-plan
+sudo chown $USER:$USER /opt/travel-plan
+cd /opt/travel-plan
+# compose.prod.yml と docker/postgres/initdb/ を、このリポジトリからコピーしておく
+# （EC2はGitHubからcloneしてもよいし、scpで必要なファイルだけ置いてもよい）
+
+# 3. 本番用.envを作成する（.env.prod.example を参考に値を入れる。Gitには絶対にコミットしない）
+vi /opt/travel-plan/.env
+
+# 4. SSH公開鍵をauthorized_keysに登録し、対応する秘密鍵をGitHub Secrets `EC2_SSH_KEY` に登録する
+
+# 5. Security Groupで、SSH(22)は自宅/オフィス/GitHub Actions runnerのIPレンジ等、接続元を絞る。
+#    PostgreSQL(5432)はインバウンドを一切開放しない（Compose上も公開していない）
+```
+
+### 本番.envの配置
+
+- 配置場所: `/opt/travel-plan/.env`
+- `.env.prod.example`（リポジトリ直下）を雛形として、DBパスワードなどの本番固有値を **EC2上で直接** 設定する
+- GitHub ActionsからこのファイルへアクセスすることもPushすることも一切ない。`deploy.yml` は `IMAGE_TAG` のみを環境変数としてSSHセッションに渡し、その他の値は既存の `/opt/travel-plan/.env` を `docker compose` が自動で読み込む
+
+### GHCR（GitHub Container Registry）
+
+- Image名: `ghcr.io/miyazakisora1234/travel-plan/backend`, `ghcr.io/miyazakisora1234/travel-plan/frontend`
+- 初回Push後、GitHubのPackages設定でリポジトリにリンクし、可視性を **Private** にすることを推奨する
+- EC2側は、デプロイのたびにジョブ有効期限内の `GITHUB_TOKEN` を使って一時的に `docker login` してからpullする（EC2に長期間有効な認証情報を保存しない）
+
+### Health Check
+
+- `backend` は `spring-boot-starter-actuator` を導入し、`/actuator/health` のみを公開（他のactuatorエンドポイントは非公開）
+- デプロイジョブは `docker compose up -d` の後、EC2上から `curl http://localhost:8080/actuator/health` を最大60秒（5秒間隔×12回）リトライし、`"status":"UP"` を確認できて初めてデプロイ成功とする
+- 単に `docker compose up -d` が成功しただけでは成功扱いにしない
+
+### ロールバック方法
+
+- デプロイのたびに、EC2上の `/opt/travel-plan/CURRENT_IMAGE_TAG` に成功した `IMAGE_TAG`（commit SHA）を記録する
+- 新しいImageのHealth Checkが失敗した場合、`deploy.yml` が自動で直前の `CURRENT_IMAGE_TAG` を使って `docker compose -f compose.prod.yml up -d` を再実行する（＝自動ロールバック）
+- 手動でロールバックしたい場合は、EC2上で以下を実行する
+
+```bash
+cd /opt/travel-plan
+export IMAGE_TAG=<戻したいcommit SHA>
+docker compose -f compose.prod.yml pull
+docker compose -f compose.prod.yml up -d
+curl -fsS http://localhost:8080/actuator/health
+```
+
+### デプロイ失敗時の確認方法
+
+1. GitHub Actionsの `Deploy` ワークフローの実行結果を確認し、どのjob（test / build-and-push / deploy）で失敗したか特定する
+2. `deploy` jobで失敗した場合は、SSHログの中でHealth Checkの結果とロールバックの有無を確認する
+3. EC2に直接SSHし、以下でコンテナの状態を確認する
+
+```bash
+cd /opt/travel-plan
+docker compose -f compose.prod.yml ps
+docker compose -f compose.prod.yml logs backend --tail 100
+```

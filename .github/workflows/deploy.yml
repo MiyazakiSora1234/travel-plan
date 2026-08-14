@@ -1,0 +1,124 @@
+name: Deploy
+
+# mainへのpushのみ本番デプロイを実行する。featureブランチではこのworkflowは動かない。
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  BACKEND_IMAGE: ghcr.io/miyazakisora1234/travel-plan/backend
+  FRONTEND_IMAGE: ghcr.io/miyazakisora1234/travel-plan/frontend
+
+jobs:
+  # Job 1: test — frontend/backendのlint・test・buildが成功しない限り後続は実行されない
+  test:
+    uses: ./.github/workflows/test.yml
+
+  # Job 2: build-and-push — Docker ImageをビルドしGHCRへPush（tagはgit commit SHA）
+  build-and-push:
+    name: Build & push Docker images
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
+            ${{ env.BACKEND_IMAGE }}:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/frontend/Dockerfile.prod
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+  # Job 3: deploy — SSHでEC2に接続し、Imageをpullしてcompose.prod.ymlで起動、Health Checkまで実施
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_TAG,GHCR_TOKEN,GHCR_USER
+          script: |
+            set -euo pipefail
+            cd /opt/travel-plan
+
+            # GHCRログイン(job有効期限内のみ有効なGITHUB_TOKENを使用。ログには出力しない)
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            # ロールバック用に、デプロイ前まで動いていたIMAGE_TAGを保持しておく
+            PREV_TAG="$(cat CURRENT_IMAGE_TAG 2>/dev/null || true)"
+
+            export IMAGE_TAG="$IMAGE_TAG"
+            docker compose -f compose.prod.yml pull
+            docker compose -f compose.prod.yml up -d
+
+            HEALTHY=0
+            for i in $(seq 1 12); do
+              if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                HEALTHY=1
+                break
+              fi
+              sleep 5
+            done
+
+            if [ "$HEALTHY" -ne 1 ]; then
+              echo "Health check failed for image tag $IMAGE_TAG" >&2
+              if [ -n "$PREV_TAG" ]; then
+                echo "Rolling back to previous image tag: $PREV_TAG" >&2
+                export IMAGE_TAG="$PREV_TAG"
+                docker compose -f compose.prod.yml up -d
+              fi
+              docker logout ghcr.io
+              exit 1
+            fi
+
+            echo "$IMAGE_TAG" > CURRENT_IMAGE_TAG
+            docker logout ghcr.io
+            docker image prune -f

@@ -24,6 +24,17 @@ app:
 server:
   port: ${SERVER_PORT:8080}
 
+# CI/CDのHealth Checkでのみ使用。/actuator/health以外は公開しない。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 logging:
   level:
     com.travelplan: INFO
