@@ -113,7 +113,7 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
             キャンセル
           </Button>
           <Button type="submit" variant="contained" disableElevation disabled={isSubmitting}>
-            {isSubmitting ? '送信中...' : '登録する'}
+            {isSubmitting ? '送信中...' : '登録'}
           </Button>
         </Stack>
       </Stack>

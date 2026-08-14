@@ -15,7 +15,7 @@ describe('TripCreateForm', () => {
 
     await user.type(screen.getByLabelText(/開始日/), '2026-09-01')
     await user.type(screen.getByLabelText(/終了日/), '2026-09-05')
-    await user.click(screen.getByRole('button', { name: '登録する' }))
+    await user.click(screen.getByRole('button', { name: '登録' }))
 
     expect(await screen.findByText('旅行名は必須です')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
@@ -29,7 +29,7 @@ describe('TripCreateForm', () => {
     fireEvent.change(screen.getByLabelText('旅行名 *'), { target: { value: 'あ'.repeat(101) } })
     await user.type(screen.getByLabelText(/開始日/), '2026-09-01')
     await user.type(screen.getByLabelText(/終了日/), '2026-09-05')
-    await user.click(screen.getByRole('button', { name: '登録する' }))
+    await user.click(screen.getByRole('button', { name: '登録' }))
 
     expect(await screen.findByText('旅行名は100文字以内で入力してください')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
@@ -41,7 +41,7 @@ describe('TripCreateForm', () => {
     await user.type(screen.getByLabelText('旅行名 *'), '東京・京都旅行')
     await user.type(screen.getByLabelText(/開始日/), '2026-09-05')
     await user.type(screen.getByLabelText(/終了日/), '2026-09-01')
-    await user.click(screen.getByRole('button', { name: '登録する' }))
+    await user.click(screen.getByRole('button', { name: '登録' }))
 
     expect(
       await screen.findByText('終了日は開始日以降の日付を指定してください'),
@@ -56,7 +56,7 @@ describe('TripCreateForm', () => {
     await user.type(screen.getByLabelText(/開始日/), '2026-09-01')
     await user.type(screen.getByLabelText(/終了日/), '2026-09-05')
     await user.type(screen.getByLabelText('メモ'), '寺社巡りをする')
-    await user.click(screen.getByRole('button', { name: '登録する' }))
+    await user.click(screen.getByRole('button', { name: '登録' }))
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
     expect(onSubmit.mock.calls[0][0]).toEqual(
