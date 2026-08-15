@@ -4,7 +4,8 @@ import { Box, Button, InputAdornment, Stack, TextField, Typography } from '@mui/
 import FlightRoundedIcon from '@mui/icons-material/FlightRounded'
 import EventRoundedIcon from '@mui/icons-material/EventRounded'
 import NotesRoundedIcon from '@mui/icons-material/NotesRounded'
-import { tripCreateSchema, type TripCreateFormValues } from '../schemas/tripCreateSchema'
+import { tripCreateSchema, type TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
+import { TRIP_MEMO_MAX_LENGTH, TRIP_NAME_MAX_LENGTH } from '@shared/constants/trip'
 
 interface TripCreateFormProps {
   onSubmit: (values: TripCreateFormValues) => void
@@ -37,7 +38,7 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
           required
           fullWidth
           slotProps={{
-            htmlInput: { maxLength: 100 },
+            htmlInput: { maxLength: TRIP_NAME_MAX_LENGTH },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -90,7 +91,7 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
           minRows={4}
           fullWidth
           slotProps={{
-            htmlInput: { maxLength: 2000 },
+            htmlInput: { maxLength: TRIP_MEMO_MAX_LENGTH },
             input: {
               startAdornment: (
                 <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}>

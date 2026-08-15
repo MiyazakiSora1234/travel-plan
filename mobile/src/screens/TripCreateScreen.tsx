@@ -10,9 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { TripCreateForm } from '../features/trips/components/TripCreateForm'
 import { useCreateTrip } from '../features/trips/hooks/useCreateTrip'
-import { extractErrorMessage } from '../lib/apiError'
+import { extractErrorMessage } from '@shared/api/error'
 import { theme } from '../theme/theme'
-import type { TripCreateFormValues } from '../features/trips/schemas/tripCreateSchema'
+import type { TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
 
 // 旅行計画登録画面
 export function TripCreateScreen() {

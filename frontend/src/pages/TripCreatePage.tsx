@@ -3,8 +3,8 @@ import { Alert, Box, Container, Paper, Snackbar, Stack, Typography } from '@mui/
 import FlightTakeoffRoundedIcon from '@mui/icons-material/FlightTakeoffRounded'
 import { TripCreateForm } from '../features/trips/components/TripCreateForm'
 import { useCreateTrip } from '../features/trips/hooks/useCreateTrip'
-import { extractErrorMessage } from '../lib/apiError'
-import type { TripCreateFormValues } from '../features/trips/schemas/tripCreateSchema'
+import { extractErrorMessage } from '@shared/api/error'
+import type { TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
 
 // /trips/new 旅行計画登録画面
 export function TripCreatePage() {

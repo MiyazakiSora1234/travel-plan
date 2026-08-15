@@ -1,216 +1,797 @@
-Travel Plan MobileのExpo SDKを57から54へダウングレードしてください。
+あなたはシニアフルスタックエンジニア兼UI/UXエンジニアです。
 
-## 目的
+Travel Planプロジェクトに「旅行計画一覧画面」を実装してください。
 
-iPhone実機にインストールされているExpo GoがSDK 54対応なので、
-現在のMobileプロジェクトをExpo SDK 54へ変更し、
-Expo Goで正常に起動できる状態にしてください。
+既存のfrontend / mobile / backend構成を尊重し、
+既存コードを壊さず、今後の機能追加にも耐えられる設計で実装してください。
 
-## 現状
+==================================================
+# 目的
+==================================================
 
-プロジェクト：
+現在、
 
-travel-plan/
-├── backend/
-├── frontend/
-├── mobile/
-├── docker-compose.yml
-└── justfile
+- frontend：Webアプリ
+- mobile：React Native / Expoアプリ
+- backend：Spring Boot
+- PostgreSQL
+- shared：frontend/mobileで共通利用するTypeScriptコード
 
-現在：
+という構成になっています。
 
-- Expo SDK: 57
-- iPhone Expo Go: SDK 54
-- iPhone実機でExpo Goを使用
-- WSL2上でExpoを起動
-- Windows IP: 192.168.1.15
+すでに「旅行計画登録」が実装されています。
 
-Expo起動コマンド：
+今回はその次の機能として、
 
-REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+「旅行計画一覧画面」
 
-Justfile：
+を実装してください。
 
-mobile:
-    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+対象：
 
-mobile-clear:
-    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+1. frontend
+2. mobile
 
-## ネットワーク設定
+の両方です。
 
-mobile/.env：
+==================================================
+# 最重要方針
+==================================================
 
-EXPO_PUBLIC_API_BASE_URL=http://192.168.1.15:8080
+WebとMobileで以下は積極的に共通化してください。
 
-この設定は絶対に変更しないでください。
+- Trip型
+- APIレスポンス型
+- API Client
+- Trip API
+- Query Key
+- Zod Schema（必要な場合）
+- 日付処理
+- 旅行日数計算
+- 表示用データ変換
+- エラー処理
+- 定数
 
-Expo Metro：
+一方、UIは共通化しません。
 
-192.168.1.15:8081
+Web：
 
-Backend：
+- MUI
+- React
+- Web向けレイアウト
 
-192.168.1.15:8080
+Mobile：
 
-これらのネットワーク設定も変更しないでください。
+- React Native
+- Expo
+- SafeAreaView
+- FlatList
+- Pressable
+- React Native向けレイアウト
 
-## 変更対象
+としてください。
 
-変更してよいのは原則として：
+「見た目のコンポーネントを共通化する」のではなく、
+
+「ドメイン・API・ロジックを共通化する」
+
+ことを徹底してください。
+
+==================================================
+# 作業前に必ず調査
+==================================================
+
+いきなりコードを書かないでください。
+
+まず現在の実装を調査してください。
+
+確認対象：
+
+frontend/
+
+- 旅行計画登録画面
+- TripCreateForm
+- Trip API
+- API Client
+- TanStack Query
+- routing
+- theme
+- layout
+- error handling
 
 mobile/
 
-配下だけです。
+- 旅行計画登録画面
+- Trip API
+- API Client
+- TanStack Query
+- routing
+- navigation
+- theme
+- components
 
-特に：
+shared/
 
-- mobile/package.json
-- mobile/package-lock.json
-- Expo関連依存パッケージ
-- React Native
-- React
-- Expo SDK関連パッケージ
+- types
+- api
+- schemas
+- constants
+- utils
 
-をExpo SDK 54に整合するように変更してください。
+backend/
 
-## 重要
+- Trip Controller
+- Trip Service
+- Trip DTO
+- GET API
+- API Response
+- endpoint
+- paginationの有無
 
-単純にpackage.jsonのバージョン番号を適当に書き換えないでください。
+既存実装を確認してから作業してください。
 
-Expo SDK 54の公式推奨構成に合わせてください。
+==================================================
+# Backend API
+==================================================
 
-必要に応じて、
+既存Backendに旅行計画一覧取得APIが存在する場合、
+そのAPIを利用してください。
 
-npx expo install --fix
+例えば、
 
-などを使用し、Expo SDK 54と関連パッケージのバージョン整合性を取ってください。
+GET /api/v1/trips
 
-## 対応してほしいパッケージ
+のようなAPIです。
 
-特に以下を確認してください。
+ただし、
 
-- expo
-- react
-- react-native
-- expo-router
-- @expo/vector-icons
-- expo-status-bar
-- expo-constants
-- expo-linking
-- expo-splash-screen
-- expo-system-ui
-- @react-native-community/datetimepicker
+「実際のBackendコードを確認してendpointを確定」
 
-その他、package.jsonに存在するExpo関連パッケージもすべて確認してください。
+してください。
 
-## 手順
+endpointを推測してはいけません。
 
-### 1. 現状確認
+Backendに一覧取得APIが存在しない場合は、
+まず状況を報告してください。
 
-まずmobile/package.jsonを確認してください。
+原則としてBackend変更は行わず、
+既存APIを利用してください。
 
-現在のExpo SDK、React、React Nativeのバージョンを確認してください。
+==================================================
+# Shared
+==================================================
 
-### 2. SDK 54へ変更
+shared/api/trips.tsにTrip APIを集約してください。
 
-Expo SDK 54を基準として、互換するReact / React Native / Expo関連パッケージへ変更してください。
+現在、
 
-package-lock.jsonも更新してください。
+createTripApi(apiClient)
 
-### 3. 依存関係の整合性確認
+のような設計を採用しています。
 
-以下を実行してください。
+この設計思想を維持してください。
 
-cd mobile
+例えば、
 
-npm install
+export function createTripApi(client: ApiClient) {
+  return {
+    create: (values: TripCreateFormValues) =>
+      client.post<Trip>('/api/v1/trips', values),
 
-npx expo install --fix
+    list: () =>
+      client.get<Trip[]>('/api/v1/trips'),
 
-npx expo doctor
+    get: (id: string) =>
+      client.get<Trip>(`/api/v1/trips/${id}`),
+  }
+}
 
-必要に応じて問題を修正してください。
+のような形を基本としてください。
 
-### 4. Metroキャッシュ削除
+ただし実際の既存コードに合わせてください。
 
-以下で起動確認してください。
+既存のcreate APIを壊さないでください。
 
-REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+==================================================
+# Query Key
+==================================================
 
-Metroに、
+TanStack Queryを使用している場合、
+旅行計画のquery keyもsharedで管理してください。
 
-exp://192.168.1.15:8081
+例：
 
-と表示されることを確認してください。
+export const tripQueryKeys = {
+  all: ['trips'] as const,
 
-### 5. Justfile
+  list: () =>
+    [...tripQueryKeys.all, 'list'] as const,
 
-Justfileの以下は変更しないでください。
+  detail: (id: string) =>
+    [...tripQueryKeys.all, 'detail', id] as const,
+}
 
-mobile:
-    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+既存のquery keyがある場合は、それを尊重してください。
 
-mobile-clear:
-    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+==================================================
+# 一覧取得Hook
+==================================================
 
-最終的に、
+frontend/mobileで同じAPI取得処理を二重実装しないでください。
 
-just mobile
+ただしReact Queryのhook自体をsharedに置くかどうかは、
+現在のプロジェクト構成を確認して判断してください。
 
-または
+Platform依存がない場合は共通化してください。
 
-just mobile-clear
+例えば：
 
-で起動できる状態にしてください。
+useTrips()
 
-## 絶対に変更しないもの
+のような形を検討してください。
 
-以下には変更を加えないでください。
+最終的に画面側では、
 
-- backend/
-- frontend/
-- docker-compose.yml
-- PostgreSQL
-- Backend API
-- Windows portproxy
-- Windows Firewall
-- mobile/.envのAPI URL
+const { data, isLoading, isError, refetch } = useTrips()
+
+のように利用できる状態を目指してください。
+
+==================================================
+# Web版 一覧画面
+==================================================
+
+frontendではMUIを使用してください。
+
+既存テーマを必ず利用してください。
+
+勝手に別の色・デザインシステムを作らないでください。
+
+画面イメージ：
+
+--------------------------------------------------
+
+旅行計画
+
+旅行を計画して、思い出をつくろう。
+
+[ ＋ 新しい旅行を作成 ]
+
+--------------------------------------------------
+
+旅行計画一覧
+
+┌────────────────────────────┐
+│ ✈ 東京・京都旅行             │
+│ 2026/09/10 - 2026/09/13     │
+│ 4日間                        │
+│                              │
+│ 京都観光と東京グルメ          │
+└────────────────────────────┘
+
+┌────────────────────────────┐
+│ ✈ 北海道旅行                 │
+│ 2026/10/01 - 2026/10/05     │
+│ 5日間                        │
+└────────────────────────────┘
+
+--------------------------------------------------
+
+デザインは現在のfrontendのデザインに合わせてください。
 
 特に、
 
-EXPO_PUBLIC_API_BASE_URL=http://192.168.1.15:8080
+- 余白
+- border-radius
+- typography
+- primary color
+- background
+- Button
+- Card
+- hover
+- responsive
 
-は絶対に維持してください。
+を既存themeに合わせてください。
 
-## 完了条件
+==================================================
+# Web版 UX
+==================================================
 
-以下をすべて満たしてください。
+一覧：
 
-1. MobileがExpo SDK 54になっている
-2. React / React NativeがExpo SDK 54と互換している
-3. Expo関連パッケージがSDK 54と整合している
-4. package-lock.jsonが更新されている
-5. `npx expo doctor`で致命的な問題がない
-6. `just mobile-clear`でMetroが起動する
-7. Metroが192.168.1.15:8081で起動する
-8. iPhoneのExpo Go SDK 54でプロジェクトを開ける
-9. 旅行計画登録画面が表示される
-10. API Base URLが192.168.1.15:8080のまま
-11. Backend / Frontend / Dockerに変更がない
+- ローディング中
+- データあり
+- データ0件
+- APIエラー
 
-## 最後に報告
+を必ず実装してください。
 
-以下をまとめてください。
+### Loading
 
-- 変更前Expo SDK
-- 変更後Expo SDK
-- 変更前React Native
-- 変更後React Native
-- 変更前React
-- 変更後React
-- 変更したExpo関連パッケージ
-- 実行したコマンド
-- expo doctorの結果
-- なぜSDK 54にすることでiPhone Expo Goと互換するのか
-- 今後Expo SDKを更新するときの注意点
+Skeletonを優先してください。
+
+単なる
+
+「読み込み中...」
+
+だけにしないでください。
+
+### Empty
+
+旅行計画が0件の場合：
+
+「まだ旅行計画がありません」
+
+などのメッセージを表示。
+
+その下に、
+
+「最初の旅行を作成する」
+
+ボタンを表示してください。
+
+### Error
+
+API取得失敗時：
+
+「旅行計画を取得できませんでした」
+
+などを表示し、
+
+「再読み込み」
+
+ボタンを表示してください。
+
+==================================================
+# Web版 Card
+==================================================
+
+TripごとにCardを表示してください。
+
+最低限：
+
+- 旅行名
+- 開始日
+- 終了日
+- 旅行日数
+- メモ
+
+を表示してください。
+
+メモが空の場合は、
+不自然な空白を作らないでください。
+
+長いメモは一覧画面で表示しすぎないよう、
+
+- line clamp
+- ellipsis
+
+などを使用してください。
+
+==================================================
+# Mobile版 一覧画面
+==================================================
+
+React Native / Expoで実装してください。
+
+基本構成：
+
+SafeAreaView
+  ↓
+Header
+  ↓
+FlatList
+  ↓
+TripCard
+
+を基本としてください。
+
+ScrollView + mapではなく、
+一覧表示にはFlatListを使用してください。
+
+大量データへの拡張性を確保してください。
+
+==================================================
+# Mobile UI
+==================================================
+
+画面イメージ：
+
+旅行計画
+
+旅行を計画して、
+思い出をつくろう。
+
+[＋ 新しい旅行]
+
+----------------------------
+
+旅行計画
+
+┌────────────────────┐
+│ ✈ 東京・京都旅行      │
+│ 2026/09/10 - 09/13  │
+│ 4日間                 │
+│ 京都観光と東京グルメ   │
+└────────────────────┘
+
+┌────────────────────┐
+│ ✈ 北海道旅行          │
+│ 2026/10/01 - 10/05  │
+│ 5日間                 │
+└────────────────────┘
+
+==================================================
+# Mobile UX
+==================================================
+
+以下を実装してください。
+
+- Loading
+- Empty
+- Error
+- Pull to Refresh
+- List表示
+- Safe Area対応
+- キーボード表示時の崩れ対策
+- iPhoneの画面サイズ対応
+
+FlatList：
+
+refreshing={isRefetching}
+onRefresh={refetch}
+
+などを適切に利用してください。
+
+==================================================
+# 日付表示
+==================================================
+
+Backendのdate形式を確認してください。
+
+一覧ではユーザー向けに、
+
+2026-09-10
+
+ではなく、
+
+2026/09/10
+
+のように読みやすく表示してください。
+
+ただし日付処理は可能ならshared/utilsに置いてください。
+
+例：
+
+formatTripDate()
+
+formatTripDateRange()
+
+calculateTripDays()
+
+など。
+
+timezoneを不用意に変更しないでください。
+
+特に、
+
+new Date('2026-09-10')
+
+によるtimezone問題には注意してください。
+
+「日付だけ」の値をDateに変換して
+1日前になるような実装は禁止です。
+
+==================================================
+# 旅行日数
+==================================================
+
+旅行期間から日数を計算する場合、
+
+開始日と終了日を含む日数
+
+としてください。
+
+例：
+
+2026/09/10
+〜
+2026/09/13
+
+の場合：
+
+4日間
+
+です。
+
+shared/utilsに共通処理として切り出してください。
+
+==================================================
+# Card押下
+==================================================
+
+将来的に旅行詳細画面へ遷移できる構造にしてください。
+
+ただし今回、詳細画面が存在しない場合は、
+無理に詳細画面を作らなくても構いません。
+
+その場合でも、
+
+TripCard
+
+自体は
+
+onPress
+
+などの拡張ポイントを持てる設計を検討してください。
+
+Mobile：
+
+Pressable
+
+Web：
+
+Card / ButtonBase / Link
+
+などPlatformに適したものを使用してください。
+
+==================================================
+# 新規作成ボタン
+==================================================
+
+既存の旅行計画登録画面へ遷移できるようにしてください。
+
+既存routing/navigationを調査して、
+現在の方式に合わせてください。
+
+新しいroutingライブラリを追加しないでください。
+
+==================================================
+# キャッシュ
+==================================================
+
+旅行計画を登録した後に一覧へ戻った場合、
+一覧が古いままにならないようにしてください。
+
+例えば、
+
+createTrip成功
+    ↓
+tripQueryKeys.listをinvalidate
+    ↓
+一覧再取得
+
+という流れを検討してください。
+
+既存のcreate処理がある場合は、
+そこに合わせて実装してください。
+
+==================================================
+# エラー処理
+==================================================
+
+API Clientの既存エラー処理を利用してください。
+
+画面側で、
+
+try {
+  fetch(...)
+} catch {
+  ...
+}
+
+を大量に書く設計は禁止です。
+
+API Client
+↓
+Query
+↓
+Screen
+
+の責務を明確にしてください。
+
+==================================================
+# パフォーマンス
+==================================================
+
+MobileはFlatListを使用。
+
+不要な再レンダリングを避けてください。
+
+ただし、
+
+useMemo
+useCallback
+React.memo
+
+を意味もなく大量投入するのは禁止です。
+
+実際に必要な場所だけ使用してください。
+
+Webでも過剰な最適化は禁止です。
+
+==================================================
+# アクセシビリティ
+==================================================
+
+Web：
+
+- buttonに適切なlabel
+- heading hierarchy
+- keyboard操作
+- aria-labelが必要な場所への付与
+
+Mobile：
+
+- accessibilityRole
+- accessibilityLabel
+
+を適切に設定してください。
+
+==================================================
+# コンポーネント構成
+==================================================
+
+現在のディレクトリ構成を確認してから、
+既存の設計に合わせてください。
+
+例えば：
+
+frontend/
+
+src/
+├── pages/
+│   └── trips/
+│       └── TripListPage.tsx
+├── components/
+│   └── trips/
+│       └── TripCard.tsx
+└── api/
+
+mobile/
+
+app/
+├── trips/
+│   └── index.tsx
+└── ...
+
+components/
+└── trips/
+    └── TripCard.tsx
+
+ただし既存routing構成を優先してください。
+
+勝手に大規模なディレクトリ変更をしないでください。
+
+==================================================
+# 禁止事項
+==================================================
+
+以下は禁止です。
+
+- Backendを勝手に変更
+- DBを変更
+- API endpointを推測
+- API URLをハードコード
+- frontend/mobileでAPI処理を二重実装
+- Trip型をfrontend/mobileそれぞれに定義
+- Zod Schemaを二重定義
+- UIをsharedに入れる
+- MUIをmobileへ持ち込む
+- React Nativeをfrontendへ持ち込む
+- 新しいUIライブラリを勝手に追加
+- 新しいroutingライブラリを追加
+- npm packageを必要なく追加
+- 日付をUTC変換して表示を壊す
+- ScrollView + mapで大量一覧を実装
+- ローディング/エラー/空状態を無視
+- 既存の旅行計画登録機能を壊す
+
+==================================================
+# テスト
+==================================================
+
+実装後、
+
+frontend：
+
+npm run lint
+npm run build
+
+既存testがある場合：
+
+npm run test
+
+mobile：
+
+npx tsc --noEmit
+npx expo doctor
+
+を実行してください。
+
+可能なら、
+
+旅行計画登録
+↓
+一覧画面へ戻る
+↓
+新しい旅行が表示される
+
+まで確認してください。
+
+==================================================
+# 完了条件
+==================================================
+
+以下を満たしてください。
+
+[共通]
+
+□ Trip型がsharedに存在
+□ API処理がsharedに存在
+□ query keyが共通化されている
+□ 日付処理が共通化されている
+□ 旅行日数計算が共通化されている
+□ API Base URLをsharedにハードコードしていない
+
+[Web]
+
+□ 旅行計画一覧画面
+□ Trip Card
+□ Loading
+□ Empty
+□ Error
+□ Retry
+□ 新規作成ボタン
+□ レスポンシブ対応
+□ 既存MUI theme利用
+
+[Mobile]
+
+□ 旅行計画一覧画面
+□ FlatList
+□ Trip Card
+□ Loading
+□ Empty
+□ Error
+□ Retry
+□ Pull to Refresh
+□ 新規作成画面へのNavigation
+□ SafeArea対応
+□ accessibility対応
+
+[既存機能]
+
+□ 旅行計画登録が壊れていない
+□ APIが正常
+□ frontend build成功
+□ mobile TypeScriptチェック成功
+□ Expo SDK 54を維持
+
+==================================================
+# 最終報告
+==================================================
+
+作業完了後、以下を報告してください。
+
+1. 作成したファイル
+2. 変更したファイル
+3. sharedに共通化したもの
+4. frontendの実装内容
+5. mobileの実装内容
+6. API endpoint
+7. Loading / Empty / Errorの実装
+8. Cache / Queryの設計
+9. 日付処理の設計
+10. 旅行日数計算の実装
+11. テスト結果
+12. 今後追加すると良い機能
+
+特に、
+
+「frontendとmobileでどこまで共通化したか」
+
+を明確に説明してください。
+
+既存コードを十分調査した上で、
+過剰なリファクタリングは避け、
+今回の旅行計画一覧機能に必要な変更に集中してください。

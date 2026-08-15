@@ -1,7 +1,8 @@
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
-import { tripCreateSchema, type TripCreateFormValues } from '../schemas/tripCreateSchema'
+import { tripCreateSchema, type TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
+import { TRIP_MEMO_MAX_LENGTH, TRIP_NAME_MAX_LENGTH } from '@shared/constants/trip'
 import { DateField } from './DateField'
 import { theme } from '../../../theme/theme'
 
@@ -43,7 +44,7 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
               onBlur={onBlur}
               placeholder="例: 東京・京都旅行"
               placeholderTextColor={theme.colors.placeholder}
-              maxLength={100}
+              maxLength={TRIP_NAME_MAX_LENGTH}
               style={[styles.input, errors.name ? styles.inputError : null]}
               accessibilityLabel="旅行名"
               accessibilityHint="旅行名を入力してください"
@@ -107,7 +108,7 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
               onBlur={onBlur}
               placeholder="持ち物、行きたい場所、予約情報など"
               placeholderTextColor={theme.colors.placeholder}
-              maxLength={2000}
+              maxLength={TRIP_MEMO_MAX_LENGTH}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
