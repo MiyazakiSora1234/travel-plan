@@ -96,6 +96,14 @@ travel-plan/
 │       ├── exception/               例外・エラーレスポンス統一
 │       └── config/                  CORS等の設定
 │   └── src/main/resources/db/migration/  Flywayマイグレーション
+├── mobile/                        React Native + Expo + TypeScript（詳細は「13. Mobile」参照）
+│   └── src/
+│       ├── api/                   axiosインスタンス・API通信関数
+│       ├── features/trips/        trips機能のコンポーネント・フック・スキーマ・型
+│       ├── lib/                   エラーハンドリング等の共通基盤
+│       ├── navigation/            React Navigationのルーティング定義
+│       ├── screens/               画面コンポーネント
+│       └── theme/                 デザイントークン
 ├── docker/
 │   ├── backend/Dockerfile
 │   ├── frontend/Dockerfile
@@ -374,3 +382,68 @@ cd /opt/travel-plan
 docker compose -f compose.prod.yml ps
 docker compose -f compose.prod.yml logs backend --tail 100
 ```
+
+## 13. Mobile（旅行計画登録画面）
+
+React Native（Expo）で実装した旅行計画登録画面。Frontend/Backendは変更せず、既存の `POST /api/v1/trips` をそのまま利用する。
+
+- ログイン機能・旅行一覧/詳細画面・地図/通知機能・Reduxなどの状態管理は今回のスコープ外（意図的に未実装）
+- 技術構成: Expo + TypeScript + React Navigation + TanStack Query（Mutation） + React Hook Form + Zod
+- バリデーション（`src/features/trips/schemas/tripCreateSchema.ts`）はWeb版の `tripCreateSchema` と同じ制約（旅行名: 必須・最大100文字 / 開始日・終了日: 必須、終了日は開始日以降 / メモ: 任意・最大2000文字）。最終的な整合性はBackend側（Bean Validation + `TripService`）で保証される点もWeb版と同じ
+- 日付は `@react-native-community/datetimepicker` によるネイティブの日付ピッカーで選択する（iOS/Android両対応）
+- Dockerは使用しない。Expoの実機/エミュレータ開発を複雑にしないため、Node/Expo CLIでそのまま動かす
+
+### ディレクトリ構成
+
+```
+mobile/
+├── App.tsx                  QueryClient/NavigationのProviderをまとめるエントリーポイント
+├── app.json                 Expoアプリ設定
+├── .env.example
+└── src/
+    ├── api/                 axiosインスタンス（client.ts）とtrips API呼び出し（trips.ts）
+    ├── features/trips/
+    │   ├── components/      TripCreateForm, DateField（ネイティブ日付ピッカー）
+    │   ├── hooks/           useCreateTrip（TanStack Query Mutation）
+    │   ├── schemas/         tripCreateSchema（Zod）
+    │   └── types/           Trip, CreateTripInput
+    ├── lib/                 apiError.ts（エラーメッセージ抽出）, queryClient.ts
+    ├── navigation/          RootNavigator（現時点ではTripCreate画面のみ）
+    ├── screens/             TripCreateScreen
+    └── theme/               theme.ts（Web版と同じ配色・角丸のデザイントークン）
+```
+
+### 起動方法
+
+```bash
+cd mobile
+npm install
+cp .env.example .env   # EXPO_PUBLIC_API_BASE_URL を環境に合わせて変更する
+npm start
+```
+
+`npm start` 後、表示されるQRコードをExpo Goアプリで読み取るか、`npm run ios` / `npm run android` でシミュレータ/エミュレータを起動する。
+
+Backendはあらかじめ起動しておくこと（`docker compose up --build` またはルートの `just up`）。CORSは `CORS_ALLOWED_ORIGINS` にモバイルからの接続元を含める必要はない（ブラウザのCORSはExpo Go/ネイティブアプリからのHTTPリクエストには適用されないため）。
+
+### 環境変数
+
+`.env.example` を参照。`EXPO_PUBLIC_*` で始まる変数はクライアントバンドルに埋め込まれるため、Secretは絶対に含めない。
+
+| 変数名 | 説明 |
+|---|---|
+| `EXPO_PUBLIC_API_BASE_URL` | BackendのAPI Base URL。実機/エミュレータからPCのlocalhostには直接到達できないため、環境に応じて値を変える（iOSシミュレータ: `http://localhost:8080` / Androidエミュレータ: `http://10.0.2.2:8080` / 実機: PCのLAN IP） |
+
+### チェックコマンド
+
+```bash
+cd mobile
+npm run typecheck   # tsc --noEmit
+npx expo-doctor      # Expo設定・依存関係の健全性チェック
+```
+
+### 今後の拡張方法
+
+- 旅行一覧・詳細画面を追加する場合は、`src/screens/` に画面を追加し、`src/navigation/RootNavigator.tsx` の `RootStackParamList` にルートを追加する
+- APIを追加する場合は `src/api/` に関数を追加し、`src/features/trips/hooks/` にTanStack Queryのフックを追加する（Web版と同じ責務分離）
+- 認証を追加する場合は `src/api/client.ts` にトークン付与のインターセプターを追加する

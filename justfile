@@ -37,6 +37,7 @@ rebuild service:
 db-shell:
     docker compose exec postgres psql -U "$APP_DB_USER" -d "$POSTGRES_DB"
 
+
 # --- Backend（ローカルにJava 21がある場合） ---
 
 be-test:
@@ -50,6 +51,7 @@ be-run:
 
 be-clean:
     cd backend && ./gradlew clean
+
 
 # --- Frontend（ローカルにNode.jsがある場合） ---
 
@@ -70,6 +72,26 @@ fe-format:
 
 fe-build:
     cd frontend && npm run build
+
+
+# --- Mobile / Expo ---
+
+# iPhone実機向けにExpoをLANモードで起動
+mobile:
+    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+
+# Expoのキャッシュを削除してiPhone実機向けに起動
+mobile-clear:
+    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+
+# Expoの環境・依存関係をチェック
+mobile-doctor:
+    cd mobile && npx expo-doctor
+
+# Mobileのnpm依存関係をインストール
+mobile-install:
+    cd mobile && npm install
+
 
 # --- まとめて実行 ---
 

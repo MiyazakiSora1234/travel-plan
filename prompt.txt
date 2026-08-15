@@ -1,5 +1,216 @@
-GitHub Actions
-       ↓
-AWS Systems Manager
-       ↓
-EC2
+Travel Plan MobileのExpo SDKを57から54へダウングレードしてください。
+
+## 目的
+
+iPhone実機にインストールされているExpo GoがSDK 54対応なので、
+現在のMobileプロジェクトをExpo SDK 54へ変更し、
+Expo Goで正常に起動できる状態にしてください。
+
+## 現状
+
+プロジェクト：
+
+travel-plan/
+├── backend/
+├── frontend/
+├── mobile/
+├── docker-compose.yml
+└── justfile
+
+現在：
+
+- Expo SDK: 57
+- iPhone Expo Go: SDK 54
+- iPhone実機でExpo Goを使用
+- WSL2上でExpoを起動
+- Windows IP: 192.168.1.15
+
+Expo起動コマンド：
+
+REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+
+Justfile：
+
+mobile:
+    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+
+mobile-clear:
+    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+
+## ネットワーク設定
+
+mobile/.env：
+
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.15:8080
+
+この設定は絶対に変更しないでください。
+
+Expo Metro：
+
+192.168.1.15:8081
+
+Backend：
+
+192.168.1.15:8080
+
+これらのネットワーク設定も変更しないでください。
+
+## 変更対象
+
+変更してよいのは原則として：
+
+mobile/
+
+配下だけです。
+
+特に：
+
+- mobile/package.json
+- mobile/package-lock.json
+- Expo関連依存パッケージ
+- React Native
+- React
+- Expo SDK関連パッケージ
+
+をExpo SDK 54に整合するように変更してください。
+
+## 重要
+
+単純にpackage.jsonのバージョン番号を適当に書き換えないでください。
+
+Expo SDK 54の公式推奨構成に合わせてください。
+
+必要に応じて、
+
+npx expo install --fix
+
+などを使用し、Expo SDK 54と関連パッケージのバージョン整合性を取ってください。
+
+## 対応してほしいパッケージ
+
+特に以下を確認してください。
+
+- expo
+- react
+- react-native
+- expo-router
+- @expo/vector-icons
+- expo-status-bar
+- expo-constants
+- expo-linking
+- expo-splash-screen
+- expo-system-ui
+- @react-native-community/datetimepicker
+
+その他、package.jsonに存在するExpo関連パッケージもすべて確認してください。
+
+## 手順
+
+### 1. 現状確認
+
+まずmobile/package.jsonを確認してください。
+
+現在のExpo SDK、React、React Nativeのバージョンを確認してください。
+
+### 2. SDK 54へ変更
+
+Expo SDK 54を基準として、互換するReact / React Native / Expo関連パッケージへ変更してください。
+
+package-lock.jsonも更新してください。
+
+### 3. 依存関係の整合性確認
+
+以下を実行してください。
+
+cd mobile
+
+npm install
+
+npx expo install --fix
+
+npx expo doctor
+
+必要に応じて問題を修正してください。
+
+### 4. Metroキャッシュ削除
+
+以下で起動確認してください。
+
+REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+
+Metroに、
+
+exp://192.168.1.15:8081
+
+と表示されることを確認してください。
+
+### 5. Justfile
+
+Justfileの以下は変更しないでください。
+
+mobile:
+    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start --lan
+
+mobile-clear:
+    cd mobile && REACT_NATIVE_PACKAGER_HOSTNAME=192.168.1.15 npx expo start -c --lan
+
+最終的に、
+
+just mobile
+
+または
+
+just mobile-clear
+
+で起動できる状態にしてください。
+
+## 絶対に変更しないもの
+
+以下には変更を加えないでください。
+
+- backend/
+- frontend/
+- docker-compose.yml
+- PostgreSQL
+- Backend API
+- Windows portproxy
+- Windows Firewall
+- mobile/.envのAPI URL
+
+特に、
+
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.15:8080
+
+は絶対に維持してください。
+
+## 完了条件
+
+以下をすべて満たしてください。
+
+1. MobileがExpo SDK 54になっている
+2. React / React NativeがExpo SDK 54と互換している
+3. Expo関連パッケージがSDK 54と整合している
+4. package-lock.jsonが更新されている
+5. `npx expo doctor`で致命的な問題がない
+6. `just mobile-clear`でMetroが起動する
+7. Metroが192.168.1.15:8081で起動する
+8. iPhoneのExpo Go SDK 54でプロジェクトを開ける
+9. 旅行計画登録画面が表示される
+10. API Base URLが192.168.1.15:8080のまま
+11. Backend / Frontend / Dockerに変更がない
+
+## 最後に報告
+
+以下をまとめてください。
+
+- 変更前Expo SDK
+- 変更後Expo SDK
+- 変更前React Native
+- 変更後React Native
+- 変更前React
+- 変更後React
+- 変更したExpo関連パッケージ
+- 実行したコマンド
+- expo doctorの結果
+- なぜSDK 54にすることでiPhone Expo Goと互換するのか
+- 今後Expo SDKを更新するときの注意点
