@@ -4,8 +4,10 @@ import com.travelplan.trip.dto.request.CreateTripRequest;
 import com.travelplan.trip.dto.response.TripResponse;
 import com.travelplan.trip.service.TripService;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,5 +30,11 @@ public class TripController {
     public ResponseEntity<TripResponse> createTrip(@Valid @RequestBody CreateTripRequest request) {
         TripResponse response = tripService.createTrip(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<TripResponse>> getTrips() {
+        List<TripResponse> response = tripService.getTrips();
+        return ResponseEntity.ok(response);
     }
 }

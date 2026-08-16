@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.travelplan.trip.entity.Trip;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -53,5 +54,17 @@ class TripRepositoryTest {
 
         assertThat(updated.getCreatedAt()).isEqualTo(createdAt);
         assertThat(updated.getUpdatedAt()).isAfter(firstUpdatedAt);
+    }
+
+    @Test
+    void 開始日の昇順で一覧を取得できる() {
+        Trip later = new Trip("北海道旅行", LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 5), null);
+        Trip earlier = new Trip("東京・京都旅行", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5), null);
+        tripRepository.saveAndFlush(later);
+        tripRepository.saveAndFlush(earlier);
+
+        List<Trip> trips = tripRepository.findAllByOrderByStartDateAsc();
+
+        assertThat(trips).extracting(Trip::getName).containsExactly("東京・京都旅行", "北海道旅行");
     }
 }

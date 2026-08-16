@@ -2,6 +2,7 @@ package com.travelplan.trip.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,6 +14,7 @@ import com.travelplan.trip.dto.response.TripResponse;
 import com.travelplan.trip.service.TripService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -98,5 +100,34 @@ class TripControllerTest {
                         .content(json))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errors[0].field").value("endDate"));
+    }
+
+    @Test
+    void 旅行計画一覧を取得できる() throws Exception {
+        TripResponse response = new TripResponse(
+                1L,
+                "東京・京都旅行",
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2026, 9, 5),
+                "寺社巡りをする",
+                OffsetDateTime.now(),
+                OffsetDateTime.now());
+
+        when(tripService.getTrips()).thenReturn(List.of(response));
+
+        mockMvc.perform(get("/api/v1/trips"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].name").value("東京・京都旅行"));
+    }
+
+    @Test
+    void 旅行計画が0件の場合は空配列を返す() throws Exception {
+        when(tripService.getTrips()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/v1/trips"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$").isEmpty());
     }
 }

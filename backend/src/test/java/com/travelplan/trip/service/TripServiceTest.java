@@ -13,6 +13,7 @@ import com.travelplan.trip.entity.Trip;
 import com.travelplan.trip.repository.TripRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -91,5 +92,27 @@ class TripServiceTest {
         TripResponse response = tripService.createTrip(request);
 
         assertThat(response.startDate()).isEqualTo(response.endDate());
+    }
+
+    @Test
+    void 旅行計画一覧を開始日昇順で取得できる() {
+        Trip trip1 = persistedTrip("北海道旅行", LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 5), null, 1L);
+        Trip trip2 = persistedTrip("東京・京都旅行", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5), "寺社巡りをする", 2L);
+        when(tripRepository.findAllByOrderByStartDateAsc()).thenReturn(List.of(trip2, trip1));
+
+        List<TripResponse> response = tripService.getTrips();
+
+        assertThat(response).hasSize(2);
+        assertThat(response.get(0).name()).isEqualTo("東京・京都旅行");
+        assertThat(response.get(1).name()).isEqualTo("北海道旅行");
+    }
+
+    @Test
+    void 旅行計画が0件の場合は空のリストを返す() {
+        when(tripRepository.findAllByOrderByStartDateAsc()).thenReturn(List.of());
+
+        List<TripResponse> response = tripService.getTrips();
+
+        assertThat(response).isEmpty();
     }
 }

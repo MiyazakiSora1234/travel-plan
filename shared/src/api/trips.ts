@@ -8,3 +8,11 @@ export function createTripApi(api: ApiClient) {
     return response.data
   }
 }
+
+// 旅行計画一覧取得API（GET /api/v1/trips）の呼び出し
+export function listTripsApi(api: ApiClient) {
+  return async (): Promise<Trip[]> => {
+    const response = await api.get<Trip[]>('/api/v1/trips')
+    return response.data
+  }
+}
