@@ -1,16 +1,26 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, type MemoryRouterProps } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TripListPage } from './TripListPage'
-import { listTrips } from '../features/trips/api/tripsApi'
+import { tripsApi } from '../features/trips/api/tripsApi'
 import type { Trip } from '@shared/types/trip'
 
 vi.mock('../features/trips/api/tripsApi', () => ({
-  listTrips: vi.fn(),
+  tripsApi: {
+    listTrips: vi.fn(),
+    getTrip: vi.fn(),
+    createTrip: vi.fn(),
+    updateTrip: vi.fn(),
+  },
 }))
 
-const mockedListTrips = vi.mocked(listTrips)
+const mockedListTrips = vi.mocked(tripsApi.listTrips)
+
+beforeEach(() => {
+  // テストごとに呼び出し回数をリセットする（vi.mockのfactoryはファイル内で共有されるため）
+  mockedListTrips.mockClear()
+})
 
 function renderPage(initialEntries: MemoryRouterProps['initialEntries'] = ['/trips']) {
   const queryClient = new QueryClient({

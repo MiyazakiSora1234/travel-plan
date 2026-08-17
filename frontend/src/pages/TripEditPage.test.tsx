@@ -2,19 +2,29 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { TripEditPage } from './TripEditPage'
-import { getTrip, updateTrip } from '../features/trips/api/tripsApi'
+import { tripsApi } from '../features/trips/api/tripsApi'
 import type { Trip } from '@shared/types/trip'
 
 vi.mock('../features/trips/api/tripsApi', () => ({
-  getTrip: vi.fn(),
-  updateTrip: vi.fn(),
+  tripsApi: {
+    listTrips: vi.fn(),
+    getTrip: vi.fn(),
+    createTrip: vi.fn(),
+    updateTrip: vi.fn(),
+  },
 }))
 
-const mockedGetTrip = vi.mocked(getTrip)
-const mockedUpdateTrip = vi.mocked(updateTrip)
+const mockedGetTrip = vi.mocked(tripsApi.getTrip)
+const mockedUpdateTrip = vi.mocked(tripsApi.updateTrip)
+
+beforeEach(() => {
+  // テストごとに呼び出し回数をリセットする（vi.mockのfactoryはファイル内で共有されるため）
+  mockedGetTrip.mockClear()
+  mockedUpdateTrip.mockClear()
+})
 
 const trip: Trip = {
   id: 1,

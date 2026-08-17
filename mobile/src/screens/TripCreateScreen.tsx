@@ -9,7 +9,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { TripCreateForm } from '../features/trips/components/TripCreateForm'
-import { useCreateTrip } from '../features/trips/hooks/useCreateTrip'
+import { useCreateTrip } from '../features/trips/hooks/tripQueries'
 import { extractErrorMessage } from '@shared/api/error'
 import { theme } from '../theme/theme'
 import type { TripCreateFormValues } from '@shared/schemas/tripCreateSchema'

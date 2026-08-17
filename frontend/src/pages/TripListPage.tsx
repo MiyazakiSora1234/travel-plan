@@ -14,8 +14,9 @@ import FlightTakeoffRoundedIcon from '@mui/icons-material/FlightTakeoffRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import { TripCard } from '../features/trips/components/TripCard'
-import { useTrips } from '../features/trips/hooks/useTrips'
+import { useTrips } from '../features/trips/hooks/tripQueries'
 import { extractErrorMessage } from '@shared/api/error'
+import { iconBadgeGradient, pageBackgroundGradient } from '../app/theme'
 
 const SKELETON_ITEM_COUNT = 3
 
@@ -45,8 +46,7 @@ export function TripListPage() {
     <Box
       sx={{
         minHeight: '100vh',
-        background:
-          'radial-gradient(circle at 15% 0%, rgba(20,184,166,0.16), transparent 45%), radial-gradient(circle at 100% 20%, rgba(249,115,22,0.12), transparent 40%), #F4F7F6',
+        background: pageBackgroundGradient,
         py: { xs: 6, sm: 10 },
       }}
     >
@@ -59,7 +59,7 @@ export function TripListPage() {
               borderRadius: '16px',
               display: 'grid',
               placeItems: 'center',
-              background: 'linear-gradient(135deg, #14B8A6, #0F766E)',
+              background: iconBadgeGradient,
               boxShadow: '0 12px 24px -10px rgba(15, 118, 110, 0.55)',
               mb: 1,
             }}

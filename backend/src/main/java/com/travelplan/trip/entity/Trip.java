@@ -1,5 +1,6 @@
 package com.travelplan.trip.entity;
 
+import com.travelplan.trip.TripConstraints;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -29,7 +30,7 @@ public class Trip {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = TripConstraints.NAME_MAX_LENGTH)
     private String name;
 
     @Column(name = "start_date", nullable = false)
@@ -38,7 +39,7 @@ public class Trip {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    @Column(name = "memo", length = 2000)
+    @Column(name = "memo", length = TripConstraints.MEMO_MAX_LENGTH)
     private String memo;
 
     @CreationTimestamp

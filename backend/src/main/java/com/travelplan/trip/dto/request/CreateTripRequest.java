@@ -1,5 +1,6 @@
 package com.travelplan.trip.dto.request;
 
+import com.travelplan.trip.TripConstraints;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -12,7 +13,7 @@ import java.time.LocalDate;
  */
 public record CreateTripRequest(
         @NotBlank(message = "旅行名は必須です")
-        @Size(max = 100, message = "旅行名は100文字以内で入力してください")
+        @Size(max = TripConstraints.NAME_MAX_LENGTH, message = "旅行名は" + TripConstraints.NAME_MAX_LENGTH + "文字以内で入力してください")
         String name,
 
         @NotNull(message = "開始日は必須です")
@@ -21,7 +22,7 @@ public record CreateTripRequest(
         @NotNull(message = "終了日は必須です")
         LocalDate endDate,
 
-        @Size(max = 2000, message = "メモは2000文字以内で入力してください")
+        @Size(max = TripConstraints.MEMO_MAX_LENGTH, message = "メモは" + TripConstraints.MEMO_MAX_LENGTH + "文字以内で入力してください")
         String memo
 ) {
 }

@@ -1,654 +1,1151 @@
-現在の旅行計画アプリに「旅行計画の更新機能」を追加してください。
+# 旅行計画アプリ 共通化リファクタリング実装指示
 
-前提：
-- frontend と backend が既に存在する
-- mobile も存在するが、今回はまず frontend を中心に実装する
-- 既存の旅行計画登録機能は動作している
-- 旅行計画一覧画面も存在する
-- 既存の設計・命名規則・APIクライアント・バリデーションを可能な限り再利用する
-- 勝手に別アーキテクチャへ変更しない
-- 既存機能を壊さないことを最優先する
-- TypeScript の型安全性を維持する
-- React Hook Form + Zod + MUI を利用している
-- API層は既存の apiClient / shared API 定義を優先して利用する
+あなたは、React / React Native / TypeScript / TanStack Query / Spring Boot / Javaに精通したシニアソフトウェアエンジニア兼アーキテクトです。
 
-# ゴール
+既存の旅行計画アプリに対して、**frontend（Web）とmobile（React Native）の重複コードを整理し、今後の機能追加でも保守コストが増えにくい構成へリファクタリングしてください。**
 
-以下のユーザー操作を実現する。
+単純なコピペ削除ではなく、
 
-旅行計画一覧
-    ↓
-旅行計画を選択
-    ↓
-旅行計画編集画面
-    ↓
-既存データがフォームに表示される
-    ↓
-内容を変更
-    ↓
-「更新する」
-    ↓
-PUT/PATCH API
-    ↓
-更新成功
-    ↓
-旅行計画一覧へ戻る
-    ↓
-更新された内容が表示される
+* 責務分離
+* 依存方向
+* 再利用性
+* 型安全性
+* テスト容易性
+* 将来の機能追加
+* Web / Mobile双方の独立性
 
-また、既存の旅行計画登録画面についても、
-「新規登録」と「更新」でフォームコンポーネントを共通化する。
+を考慮してください。
 
---------------------------------------------------
-# 1. まず既存コードを調査する
---------------------------------------------------
+---
 
-いきなり実装を開始しない。
+# 1. 最重要ルール
 
-最初に以下を調査する。
+## 既存機能を壊さない
 
-- frontend のディレクトリ構成
-- routing
-- 旅行計画一覧画面
-- 旅行計画登録画面
-- TripCreateForm
-- tripCreateSchema
-- API client
-- trips API
-- Trip 型
-- React Query / TanStack Query の利用状況
-- エラーハンドリング
-- loading 状態
-- snackbar / toast 等の通知方式
-- backend の Trip Controller
-- backend の Trip Service / UseCase
-- backend の Repository
-- backend の DTO
-- 更新APIが既に存在するか
-- HTTPメソッドが PUT / PATCH のどちらなのか
-- mobile 側に同様の実装があるか
+今回の作業はリファクタリングが目的です。
 
-まず現在の設計を理解してから実装すること。
+以下を原則として維持してください。
 
---------------------------------------------------
-# 2. API設計
---------------------------------------------------
+* API仕様を勝手に変更しない
+* URLを変更しない
+* HTTP Methodを変更しない
+* DB Schemaを変更しない
+* 画面仕様を変更しない
+* UIデザインを勝手に変更しない
+* React Queryの挙動を変更しない
+* キャッシュ戦略を勝手に変更しない
+* エラーハンドリングを勝手に変更しない
+* Backend APIのレスポンス形式を変更しない
 
-既に旅行計画更新APIが存在する場合は、それを利用する。
+「共通化のために仕様を変更する」のは禁止です。
 
-存在しない場合は backend に更新APIを追加する。
+仕様変更が必要になった場合は、そこで作業を停止して報告してください。
 
-基本的には以下を想定する。
+---
 
-PUT /api/v1/trips/{id}
+# 2. 最初に必ずコードベースを調査する
 
-Request:
+いきなりコードを書き換えないでください。
 
-{
-  "name": "東京・京都旅行",
-  "startDate": "2026-09-01",
-  "endDate": "2026-09-05",
-  "memo": "ホテル予約済み"
-}
+まずプロジェクト全体を調査してください。
 
-Response は既存APIのレスポンス形式に合わせる。
+対象:
 
-重要：
+```text
+frontend/
+mobile/
+backend/
+shared/
+```
 
-- APIのレスポンス形式を既存APIと統一する
-- frontendだけ独自形式を作らない
-- DTOを適切に定義する
-- IDはURL Path Parameter
-- 更新対象のIDをRequest Bodyに重複して持たせない
-- 存在しないIDの場合は404
-- 不正な入力は400系
-- サーバーエラーは既存のエラーハンドリング方針に従う
+存在する場合は以下も調査してください。
 
---------------------------------------------------
-# 3. frontendのフォーム設計
---------------------------------------------------
+```text
+package.json
+tsconfig.json
+pnpm-workspace.yaml
+yarn.lock
+package-lock.json
+docker-compose.yml
+README.md
+```
 
-現在の TripCreateForm を確認し、
-新規登録専用フォームになっている場合はリファクタリングする。
+調査対象:
 
-理想構成：
+```text
+React Query hooks
+API client
+API wrapper
+TypeScript types
+DTO
+Validation
+Constants
+Theme
+Page layout
+Trip form
+Trip create
+Trip edit
+Trip list
+```
 
+---
+
+# 3. 重複コードを幅広く洗い出す
+
+以下だけに限定せず、プロジェクト全体から共通化候補を探してください。
+
+特に以下を重点的に調査してください。
+
+## 最優先
+
+### React Query
+
+```text
+frontend/**/use*.ts
+mobile/**/use*.ts
+```
+
+以下のような重複を探してください。
+
+```text
+useTrips
+useTrip
+useCreateTrip
+useUpdateTrip
+useDeleteTrip
+```
+
+---
+
+## API Wrapper
+
+```text
+frontend/**/tripsApi.ts
+mobile/**/trips.ts
+```
+
+などを比較してください。
+
+---
+
+## TypeScript Type
+
+以下の重複を探してください。
+
+```text
+Trip
+CreateTripRequest
+UpdateTripRequest
+TripResponse
+```
+
+---
+
+## Constants
+
+以下のようなマジックナンバーを探してください。
+
+```text
+100
+2000
+```
+
+特にTrip関連のValidation値を調査してください。
+
+---
+
+## Theme / Design Token
+
+以下を調査してください。
+
+```text
+frontend/theme.ts
+mobile/theme.ts
+```
+
+さらにページ内の、
+
+```text
+#2563EB
+#14B8A6
+#0F766E
+#F97316
+```
+
+などのカラー直書きも調査してください。
+
+---
+
+## Page Shell
+
+特に、
+
+```text
+TripCreatePage.tsx
+TripEditPage.tsx
+TripListPage.tsx
+```
+
+を比較してください。
+
+以下の重複を調査してください。
+
+```text
+背景
+Box
+アイコンバッジ
+タイトル
+Paper
+Snackbar
+Error表示
+余白
+```
+
+---
+
+## Form
+
+以下の重複も調査してください。
+
+```text
+TripCreatePage
+TripEditPage
+```
+
+のフォーム部分。
+
+将来的に、
+
+```text
 TripForm
-    ├── 新規登録
-    └── 更新
+```
 
-例えば：
+へ切り出せるか判断してください。
 
-components/trips/TripForm.tsx
+---
 
-props：
+# 4. 調査結果を先に整理する
 
-interface TripFormProps {
-  defaultValues?: TripFormValues
-  onSubmit: (values: TripFormValues) => void
-  isSubmitting: boolean
-  submitLabel?: string
+コード変更前に、以下の形式で調査結果を出してください。
+
+```text
+対象
+現在のファイル
+重複内容
+共通化する場所
+共通化方法
+メリット
+リスク
+優先度
+```
+
+優先度は、
+
+```text
+S
+A
+B
+C
+```
+
+で分類してください。
+
+---
+
+# 5. 推奨アーキテクチャ
+
+最終的には以下を基本構成としてください。
+
+```text
+travel-plan/
+│
+├── frontend/
+│
+├── mobile/
+│
+├── backend/
+│
+└── shared/
+    ├── api/
+    │   └── trips.ts
+    │
+    ├── query/
+    │   └── trips.ts
+    │
+    ├── types/
+    │   └── trip.ts
+    │
+    ├── constants/
+    │   └── trip.ts
+    │
+    └── theme/
+        ├── colors.ts
+        ├── spacing.ts
+        └── typography.ts
+```
+
+ただし、現在のプロジェクト構造を確認し、既存のworkspace構成などと矛盾する場合は、最小限の変更で適切な構成にしてください。
+
+---
+
+# 6. React Queryを共通化
+
+最優先で実施してください。
+
+現在frontend/mobileに重複しているReact Query hookを、
+
+```text
+shared/query/
+```
+
+へ集約してください。
+
+ただし、WebとMobileでAPI Clientの実装が異なる可能性があります。
+
+そのため、
+
+```text
+shared
+  ↓
+API Clientを直接import
+```
+
+する構造は禁止します。
+
+Dependency InjectionまたはFactoryを使用してください。
+
+例:
+
+```ts
+export const createTripQueries = (tripsApi: TripsApi) => ({
+  useTrips: () =>
+    useQuery({
+      queryKey: ["trips"],
+      queryFn: tripsApi.listTrips,
+    }),
+
+  useTrip: (id: number) =>
+    useQuery({
+      queryKey: ["trips", id],
+      queryFn: () => tripsApi.getTrip(id),
+    }),
+
+  useCreateTrip: () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+      mutationFn: tripsApi.createTrip,
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: ["trips"],
+        });
+      },
+    });
+  },
+});
+```
+
+ただし、既存コードのqueryKey、staleTime、mutation、invalidateQueriesなどを必ず確認し、**既存挙動を維持してください。**
+
+---
+
+# 7. API Wrapperを共通化
+
+以下のような構造にしてください。
+
+```text
+shared/api/trips.ts
+```
+
+ここにTrip APIの定義を集約してください。
+
+例:
+
+```ts
+export const createTripsClient = (apiClient: ApiClient) => ({
+  listTrips: () =>
+    apiClient.get<Trip[]>("/trips"),
+
+  getTrip: (id: number) =>
+    apiClient.get<Trip>(`/trips/${id}`),
+
+  createTrip: (request: CreateTripRequest) =>
+    apiClient.post<Trip>("/trips", request),
+
+  updateTrip: (id: number, request: UpdateTripRequest) =>
+    apiClient.put<Trip>(`/trips/${id}`, request),
+
+  deleteTrip: (id: number) =>
+    apiClient.delete(`/trips/${id}`),
+});
+```
+
+これは例です。
+
+**必ず既存API実装を確認し、実際のURL・HTTP Method・Request・Response型を維持してください。**
+
+Web:
+
+```ts
+const tripsApi = createTripsClient(apiClient);
+```
+
+Mobile:
+
+```ts
+const tripsApi = createTripsClient(apiClient);
+```
+
+という形を基本とします。
+
+---
+
+# 8. TypeScript型を共通化
+
+以下を可能な限り、
+
+```text
+shared/types/trip.ts
+```
+
+に集約してください。
+
+例:
+
+```ts
+export interface Trip {
+  id: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  description?: string;
 }
+```
 
-ただし、既存プロジェクトの設計により適切な形がある場合はそちらを優先する。
+ただし、
 
-重要なのは、
+```text
+Web専用型
+Mobile専用型
+```
 
-「登録フォーム」と「更新フォーム」で同じ入力UIを二重実装しないこと。
+まで無理にsharedへ持ち込まないでください。
 
-共通化するもの：
+「API Contractとして共通する型」のみ共有してください。
 
-- 旅行名
-- 開始日
-- 終了日
-- メモ
-- Zod validation
-- エラー表示
-- MUI TextField
-- ボタン
-- loading状態
+---
 
-画面ごとに変更するもの：
+# 9. Backend DTO
 
-新規登録：
-- 初期値は空
-- 「登録する」
-- POST
+Backendについては慎重に扱ってください。
 
-更新：
-- APIから取得した既存データを初期値として設定
-- 「更新する」
-- PUT/PATCH
+現在、
 
---------------------------------------------------
-# 4. 新規登録画面
---------------------------------------------------
+```text
+CreateTripRequest
+UpdateTripRequest
+```
 
-既存の登録画面を壊さない。
+のフィールド・Validationが完全一致している場合、共通化候補として検討してください。
 
-例えば：
+ただし、
 
-/trips/new
+```text
+POST
+PUT
+```
 
-など、既存routingに合わせる。
+でValidationルールや意味が異なる可能性がある場合は、無理に統合しないでください。
 
-表示：
+特に、
 
-旅行計画を作成
+```text
+Createでは必須
+Updateでは任意
+```
 
-[旅行名]
-[開始日] [終了日]
-[メモ]
+のような仕様差が将来発生する可能性を考慮してください。
 
-[キャンセル] [登録する]
+### 原則
 
-登録成功後：
+「コードが似ているから統合」ではなく、
 
-旅行計画一覧へ遷移する。
+```text
+APIとして同じ意味を持つか
+```
 
---------------------------------------------------
-# 5. 更新画面
---------------------------------------------------
+を基準に判断してください。
 
-以下のようなURL設計を基本とする。
+---
 
-/trips/:id/edit
+# 10. Trip Validation定数
 
-例：
+以下のような値が複数箇所に存在する場合、
 
-/trips/123/edit
+```text
+100
+2000
+```
 
-画面表示：
+などをTripドメインの定数として整理してください。
 
-旅行計画を編集
+例:
 
-[旅行名]
-[開始日] [終了日]
-[メモ]
+```java
+public final class TripConstraints {
 
-[キャンセル] [更新する]
+    public static final int NAME_MAX_LENGTH = 100;
+    public static final int DESCRIPTION_MAX_LENGTH = 2000;
 
-画面表示時に GET API を実行して既存データを取得する。
+    private TripConstraints() {
+    }
+}
+```
 
-例：
+使用側:
 
-GET /api/v1/trips/123
+```java
+@Size(max = TripConstraints.NAME_MAX_LENGTH)
+```
 
-取得後、
+ただし、既存Validation仕様は変更しないでください。
 
-reset({
-  name: trip.name,
-  startDate: trip.startDate,
-  endDate: trip.endDate,
-  memo: trip.memo,
-})
+---
 
-のように React Hook Form に設定する。
+# 11. Design Token
 
-重要：
+まずfrontend内部のThemeとページ実装の乖離を解消してください。
 
-useForm の defaultValues に非同期APIの結果を直接入れようとしない。
+現在Themeに定義されているカラーと、ページに直書きされているカラーを比較してください。
 
-API取得後に reset() を利用する。
+例えば、
 
---------------------------------------------------
-# 6. 一覧画面から編集へ遷移
---------------------------------------------------
-
-旅行計画一覧の各カード/行に、
-
-「編集」
-
-ボタンまたは編集アイコンを追加する。
-
-例：
-
-東京・京都旅行
-2026/09/01 - 2026/09/05
-ホテル予約済み
-
-[編集]
-
-「編集」を押すと、
-
-/trips/:id/edit
-
-へ遷移する。
-
-カード全体クリックではなく、
-編集操作は明示的なボタンとして実装する。
-
-アクセシビリティも考慮する。
-
---------------------------------------------------
-# 7. 更新成功後
---------------------------------------------------
-
-更新API成功後：
-
-1. 成功通知
-2. 一覧画面へ遷移
-3. 一覧データを最新状態にする
-
-React Query / TanStack Query を利用している場合は、
-
-queryClient.invalidateQueries({
-  queryKey: ...
-})
-
-を利用する。
-
-ブラウザをリロードしないと一覧が更新されないような実装は禁止。
-
-既存のqueryKey設計に合わせる。
-
---------------------------------------------------
-# 8. React Queryを利用している場合
---------------------------------------------------
-
-既存プロジェクトがTanStack Queryを利用している場合、
-
-以下のように責務を分離する。
-
-useTrip(id)
-useCreateTrip()
-useUpdateTrip(id)
+```text
+#2563EB
+#14B8A6
+#0F766E
+#F97316
+```
 
 など。
 
-例：
+ページ側に直書きされているカラーは、適切なDesign Tokenへ移してください。
 
-const updateTripMutation = useMutation({
-  mutationFn: (values) => updateTrip(id, values),
-  onSuccess: async () => {
-    await queryClient.invalidateQueries({
-      queryKey: ['trips'],
-    })
+最初からWeb/Mobile完全共通化を強制しないでください。
 
-    navigate('/trips')
-  },
-})
+まず、
 
-ただし、既存のqueryKey設計を確認して統一する。
+```text
+frontend
+ ↓
+frontend theme
+```
 
-API呼び出しをReactコンポーネントへ直接大量に書かない。
+を正常化してください。
 
---------------------------------------------------
-# 9. エラー処理
---------------------------------------------------
+その後、
 
-以下を必ず考慮する。
+```text
+shared/theme
+```
 
-- IDが不正
-- IDの旅行計画が存在しない
-- API通信失敗
-- バリデーションエラー
-- 更新中の二重送信
-- ネットワーク切断
-- サーバーエラー
+へ移すメリットが明確なものだけ共通化してください。
 
-特に更新ボタンは、
+---
 
-disabled={isSubmitting}
+# 12. Page Shell
 
-などで二重送信を防止する。
+以下を共通化してください。
 
-取得中：
+```text
+TripCreatePage
+TripEditPage
+```
 
-「読み込み中...」
+共通部分を、
 
-取得失敗：
+```text
+TripFormPageLayout
+```
 
-「旅行計画の取得に失敗しました」
+として切り出してください。
 
-404：
+イメージ:
 
-「旅行計画が見つかりません」
+```tsx
+<TripFormPageLayout
+  icon={<EditIcon />}
+  title="旅行計画を編集"
+  error={error}
+>
+  <TripForm />
+</TripFormPageLayout>
+```
 
-など、ユーザーが状態を理解できるUIにする。
+Create:
 
---------------------------------------------------
-# 10. backendの更新処理
---------------------------------------------------
+```tsx
+<TripFormPageLayout
+  icon={<AddIcon />}
+  title="旅行計画を作成"
+  error={error}
+>
+  <TripForm />
+</TripFormPageLayout>
+```
 
-backend側に更新APIが存在しない場合は追加する。
+ただし、実際のPropsは既存コードを確認して適切に設計してください。
 
-既存のアーキテクチャを確認して、
+---
 
-Controller
+# 13. TripForm
+
+Create / Editでフォーム内容が重複している場合、
+
+```text
+TripForm
+```
+
+へ切り出してください。
+
+理想:
+
+```text
+TripCreatePage
     ↓
-UseCase / Service
+TripFormPageLayout
     ↓
-Repository
+TripForm
+
+TripEditPage
     ↓
-Database
-
-という責務分離を維持する。
-
-ControllerにDB処理を書くなどの実装は禁止。
-
-例：
-
-TripController
+TripFormPageLayout
     ↓
-UpdateTripUseCase
-    ↓
-TripRepository
-    ↓
-PostgreSQL
+TripForm
+```
 
-既存のCreate処理などと設計思想を統一する。
+TripFormは、
 
---------------------------------------------------
-# 11. 更新時のバリデーション
---------------------------------------------------
+```text
+入力UI
+Validation表示
+フォーム状態
+```
 
-frontendだけでなくbackendでも必ず検証する。
+を担当し、
 
-frontend：
+Create / Edit固有の、
 
-Zod
+```text
+API mutation
+初期データ取得
+submit後のnavigation
+```
 
-backend：
+などはPage側で管理することを基本としてください。
 
-既存のBean Validation等
+---
 
-最低限：
+# 14. Web / Mobileの責務分離
 
-- name 必須
-- name 最大100文字
-- startDate 必須
-- endDate 必須
-- startDate <= endDate
-- memo 最大2000文字
+以下は無理に共通化しないでください。
 
-frontendのvalidationだけを信頼してはいけない。
+```text
+MUI Components
+React Native Components
+Web専用UI
+Mobile専用UI
+Navigation
+Router
+Platform-specific behavior
+```
 
---------------------------------------------------
-# 12. セキュリティ
---------------------------------------------------
+共通化するのは基本的に、
 
-以下を確認する。
+```text
+API
+Query
+Types
+Constants
+Business rules
+Design Tokens
+```
 
-- URLのidをそのまま信用しない
-- backend側で存在確認
-- 将来的な認証追加を考慮した設計
-- 他ユーザーのTripを更新できる設計にしない
-- SQL Injectionを発生させない
-- SQLを文字列連結しない
-- frontendから送られた値を無条件に信用しない
+です。
 
-現時点で認証がない場合でも、
+---
 
-「認証が追加されたら所有者チェックをどこに入れるか」
+# 15. Dependency Direction
 
-を意識した設計にする。
+依存関係は以下を目指してください。
 
---------------------------------------------------
-# 13. mobileとの共通化
---------------------------------------------------
+```text
+                 shared
+              /    |    \
+             ↓     ↓     ↓
+        frontend  mobile
+```
 
-frontendとmobileで既に共有API層が存在する場合は、
-可能な限り共通化する。
+sharedから、
 
-ただし、Web専用UIとMobile専用UIは無理に共通化しない。
+```text
+frontend
+mobile
+```
 
-共通化対象：
+をimportするのは禁止です。
 
-- API型
-- Trip型
-- API request / response型
-- validation schema
-- API endpoint定義
-- business logic
+sharedは、
 
-共通化しない：
+```text
+React
+TanStack Query
+TypeScript
+```
 
-- MUIコンポーネント
-- React Nativeコンポーネント
-- navigation UI
-- Web専用レイアウト
+など必要最低限の依存だけを持つようにしてください。
 
-既存のshared構成を確認して適切に配置する。
+---
 
---------------------------------------------------
-# 14. ディレクトリ構成
---------------------------------------------------
+# 16. package管理
 
-現在の構成を確認したうえで、必要に応じて以下の方向へ整理する。
+既存の、
 
-例：
+```text
+npm
+pnpm
+yarn
+npm workspaces
+pnpm workspaces
+```
 
-frontend/src/
+などを必ず確認してください。
 
-features/
-  trips/
-    api/
-      trips.ts
-    components/
-      TripForm.tsx
-      TripList.tsx
-      TripCard.tsx
-    hooks/
-      useTrip.ts
-      useTrips.ts
-      useCreateTrip.ts
-      useUpdateTrip.ts
-    pages/
-      TripListPage.tsx
-      TripCreatePage.tsx
-      TripEditPage.tsx
-    schemas/
-      tripSchema.ts
-    types/
-      trip.ts
-
-shared/
-  api/
-  components/
-  types/
-
-ただし、既存プロジェクトの構成を尊重し、
-不要な大規模リファクタリングは今回行わない。
-
---------------------------------------------------
-# 15. UX
---------------------------------------------------
-
-登録画面と更新画面でUIの一貫性を保つ。
-
-新規：
-
-「旅行計画を作成」
-
-更新：
-
-「旅行計画を編集」
-
-ボタン：
-
-新規 → 「登録する」
-更新 → 「更新する」
-
-キャンセル：
-
-一覧画面へ戻る。
-
-フォームの入力内容が変更されている場合、
-必要であればブラウザバック等による離脱確認も検討する。
-
-ただし、過剰なUX実装は今回避ける。
-
---------------------------------------------------
-# 16. テスト
---------------------------------------------------
-
-最低限以下をテストする。
-
-Frontend：
-
-- フォームが表示される
-- 既存データがフォームにセットされる
-- バリデーションが動く
-- 更新ボタンでAPIが呼ばれる
-- 更新成功後に一覧へ遷移する
-- APIエラー時にエラー表示される
-- 二重送信できない
-
-Backend：
-
-- 正常更新
-- 存在しないID
-- 不正な入力
-- startDate > endDate
-- nameの最大長
-- memoの最大長
-
-既存テストの方式に合わせる。
-
---------------------------------------------------
-# 17. アンチパターン
---------------------------------------------------
-
-以下は禁止。
-
-- TripCreateFormとTripUpdateFormに同じフォームUIをコピペする
-- Reactコンポーネントからfetch/axiosを直接大量に呼ぶ
-- ControllerにDB処理を書く
-- frontendだけでvalidationする
-- 更新後にwindow.location.reload()する
-- 更新成功後に一覧データを手動で適当に書き換える
-- URLのidをnumberに変換しただけで存在確認したつもりになる
-- APIレスポンス型をanyにする
-- `as any` でTypeScriptエラーを隠す
-- `useEffect`を大量に使って状態管理する
-- API取得前にundefinedの値を無理やりフォームへ渡す
-- 新規登録と更新で別々のvalidation schemaをコピペする
-
---------------------------------------------------
-# 18. 実装手順
---------------------------------------------------
-
-以下の順番で実装する。
-
-1. 現在のfrontend/backend/mobile構成を調査
-2. 更新APIの有無を確認
-3. 更新APIがなければbackendに追加
-4. Tripの型を整理
-5. validation schemaを整理
-6. API clientにupdateTripを追加
-7. TripFormへフォームUIを共通化
-8. TripCreatePageをTripForm利用へ変更
-9. TripEditPageを追加
-10. GET /trips/:idを利用して既存値を取得
-11. reset()でフォームへ反映
-12. PUT/PATCHで更新
-13. 一覧画面へ編集ボタン追加
-14. 更新成功後に一覧へ戻る
-15. React Queryのcacheをinvalidate
-16. エラーハンドリング
-17. frontendテスト
-18. backendテスト
-19. lint
-20. build
-21. 既存の登録・一覧機能が壊れていないことを確認
-
---------------------------------------------------
-# 19. 完了条件
---------------------------------------------------
-
-以下がすべて満たされたら完了。
-
-[ ] 旅行計画一覧から編集画面へ遷移できる
-[ ] 編集画面に既存データが表示される
-[ ] 旅行名を変更できる
-[ ] 開始日を変更できる
-[ ] 終了日を変更できる
-[ ] メモを変更できる
-[ ] バリデーションが動作する
-[ ] 更新APIが正常に呼ばれる
-[ ] DBのデータが更新される
-[ ] 更新成功後に一覧へ戻る
-[ ] 一覧に更新後の内容が表示される
-[ ] APIエラーが適切に表示される
-[ ] 二重送信を防止している
-[ ] 新規登録機能が壊れていない
-[ ] 一覧機能が壊れていない
-[ ] TypeScriptエラーがない
-[ ] lintが通る
-[ ] frontend buildが通る
-[ ] backend testが通る
-[ ] 既存のアーキテクチャを破壊していない
-
---------------------------------------------------
-# 20. 最重要
---------------------------------------------------
-
-実装前に必ず既存コードを読み、
-「現在のプロジェクトで既に採用されている設計」を優先すること。
-
-勝手に新しいライブラリを追加しない。
-
-既存のAPI client、React Query、routing、validation、error handling、shared packageなどがある場合は、それらを利用する。
-
-今回の目的は単に「更新できるようにする」ことではなく、
-
-「新規登録と更新でフォームを再利用でき、
-一覧 → 編集 → 更新 → 一覧という自然なCRUD構造を持ち、
-将来的に削除・詳細表示・認証・権限管理を追加しても破綻しない構成」
-
-にすることである。
-
-実装後、
-
-1. 変更したファイル一覧
-2. 各ファイルの変更理由
-3. API仕様
-4. 画面遷移
-5. 共通化した部分
-6. backendの変更点
-7. テスト結果
-8. 今後の拡張ポイント
-9. 残っている技術的負債
-
-を最後に報告してください。
+既存プロジェクトがworkspace構成なら、それを尊重してください。
+
+勝手にpackage managerを変更しないでください。
+
+sharedをpackageとして扱う必要がある場合は、
+
+```text
+package.json
+tsconfig
+workspace設定
+```
+
+を適切に修正してください。
+
+---
+
+# 17. テスト
+
+リファクタリング前後で挙動が変わっていないことを確認してください。
+
+最低限、
+
+```text
+TypeScript compile
+Lint
+Test
+Build
+```
+
+を実行してください。
+
+利用可能なら、
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+など既存プロジェクトのコマンドを使用してください。
+
+コマンドはpackage.jsonを確認して判断してください。
+
+存在しないコマンドを勝手に実行しないでください。
+
+---
+
+# 18. Backend確認
+
+Backendについても、
+
+```bash
+./mvnw test
+```
+
+など既存プロジェクトの正しいテストコマンドを確認して実行してください。
+
+DTOやValidationを変更した場合は、
+
+```text
+Create Trip
+Update Trip
+Validation Error
+```
+
+を重点的に確認してください。
+
+---
+
+# 19. リファクタリング後の確認
+
+最終的に以下を確認してください。
+
+```text
+[ ] frontendでTrip一覧が動く
+[ ] frontendでTrip作成が動く
+[ ] frontendでTrip編集が動く
+[ ] frontendでTrip削除が動く
+[ ] mobileでTrip一覧が動く
+[ ] mobileでTrip作成が動く
+[ ] API Clientが重複していない
+[ ] React Query hookが重複していない
+[ ] Trip Typeが重複していない
+[ ] Trip Formの重複が整理されている
+[ ] Page Shellが共通化されている
+[ ] Themeの直書きが整理されている
+[ ] Backend DTOの重複を適切に判断している
+[ ] Validation定数が整理されている
+[ ] TypeScript compileが成功する
+[ ] Lintが成功する
+[ ] Testが成功する
+[ ] Buildが成功する
+```
+
+---
+
+# 20. やってはいけないこと
+
+以下は禁止です。
+
+## NG 1
+
+```text
+frontendとmobileで同じhookをコピペ
+```
+
+---
+
+## NG 2
+
+```text
+sharedからfrontend/mobileのコードをimport
+```
+
+---
+
+## NG 3
+
+```text
+sharedにMUIを大量導入
+```
+
+React Nativeで利用できないWeb専用依存をsharedのコアロジックへ持ち込まないでください。
+
+---
+
+## NG 4
+
+```text
+Create / Updateの仕様が違うのにDTOを無理やり統合
+```
+
+---
+
+## NG 5
+
+```text
+共通化のために既存API仕様を変更
+```
+
+---
+
+## NG 6
+
+```text
+巨大なshared/index.ts
+```
+
+すべてを1ファイルからexportする巨大なbarrel fileを作らないでください。
+
+必要なものだけ明示的にimportできる構成を優先してください。
+
+---
+
+## NG 7
+
+```text
+一度に全ファイルを大規模変更
+```
+
+変更範囲を小さくしてください。
+
+---
+
+# 21. 実装順序
+
+以下の順番で進めてください。
+
+```text
+Step 1
+コードベース調査
+
+↓
+
+Step 2
+重複一覧作成
+
+↓
+
+Step 3
+sharedディレクトリ設計
+
+↓
+
+Step 4
+API Client共通化
+
+↓
+
+Step 5
+React Query共通化
+
+↓
+
+Step 6
+TypeScript Type共通化
+
+↓
+
+Step 7
+Trip Constants整理
+
+↓
+
+Step 8
+TripFormPageLayout共通化
+
+↓
+
+Step 9
+TripForm共通化
+
+↓
+
+Step 10
+frontend Theme整理
+
+↓
+
+Step 11
+Backend DTO / Validation整理
+
+↓
+
+Step 12
+Test / Lint / Build
+
+↓
+
+Step 13
+最終レビュー
+```
+
+ただし、Step 4以降は実際の依存関係を確認し、より安全な順番がある場合は変更して構いません。
+
+---
+
+# 22. 各Stepで必ず説明すること
+
+各変更について、
+
+```text
+変更前
+変更後
+なぜ共通化するのか
+なぜこの設計なのか
+メリット
+デメリット
+将来の拡張性
+```
+
+を簡潔に説明してください。
+
+特に、
+
+> 「なぜこのコードをsharedに置くのか」
+
+を説明してください。
+
+---
+
+# 23. 最終成果物
+
+最終的に以下の状態を目指してください。
+
+```text
+frontend
+   │
+   ├── Web UI
+   ├── Web Router
+   └── Web API Client
+            │
+            ↓
+          shared
+            │
+      ┌─────┼─────┐
+      ↓     ↓     ↓
+     API   Query  Types
+      │     │     │
+      └─────┼─────┘
+            │
+        mobile
+            │
+            ├── Mobile UI
+            ├── Navigation
+            └── Mobile API Client
+```
+
+---
+
+# 24. 最終レビュー
+
+すべての変更が終わったら、以下をレビューしてください。
+
+### 保守性
+
+```text
+Trip API仕様を変更した場合、
+何ファイル修正する必要があるか？
+```
+
+### 機能追加
+
+```text
+Trip Delete APIを追加した場合、
+frontend/mobile双方に同じコードを書く必要がないか？
+```
+
+### 新機能
+
+```text
+Place
+Schedule
+Expense
+Hotel
+```
+
+などの新しいドメインを追加した場合、
+
+```text
+shared/api/places.ts
+shared/query/places.ts
+shared/types/place.ts
+```
+
+のように同じ設計を適用できるか確認してください。
+
+### 依存関係
+
+```text
+shared → frontend
+shared → mobile
+```
+
+になっているか確認してください。
+
+逆方向依存があれば修正してください。
+
+---
+
+# 25. 最終報告
+
+最後に以下を報告してください。
+
+```text
+## 共通化したもの
+
+- React Query
+- API Client
+- Type
+- Constants
+- Page Layout
+- Form
+- Theme
+- Backend DTO
+
+## 共通化しなかったもの
+
+- Web UI
+- Mobile UI
+- Router
+- Navigation
+- その他
+
+## 作成したsharedファイル
+
+一覧
+
+## 削除した重複ファイル
+
+一覧
+
+## 変更したBackend
+
+一覧
+
+## テスト結果
+
+TypeScript:
+Lint:
+Test:
+Build:
+Backend Test:
+
+## 残っている共通化候補
+
+一覧
+
+## 今後の推奨
+
+優先順位付きで記載
+```
+
+---
+
+# 最重要
+
+**既存機能を壊さないことを最優先してください。**
+
+「綺麗なアーキテクチャ」にすることより、
+
+```text
+既存仕様維持
+↓
+重複削減
+↓
+責務分離
+↓
+型安全性
+↓
+テスト
+↓
+将来拡張
+```
+
+の順番を優先してください。
+
+また、共通化できるコードを見つけても、**変更理由が異なるものまで無理に共通化しないでください。**
+
+最終的な判断基準は、
+
+> 「今コードが似ているか」
+
+ではなく、
+
+> **「今後も同じ理由で変更されるコードか」**
+
+としてください。
