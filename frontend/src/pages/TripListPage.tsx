@@ -1,25 +1,45 @@
+import { useState } from 'react'
 import {
   Alert,
   Box,
   Button,
   Container,
   Skeleton,
+  Snackbar,
   Stack,
   Typography,
 } from '@mui/material'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import FlightTakeoffRoundedIcon from '@mui/icons-material/FlightTakeoffRounded'
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
 import { TripCard } from '../features/trips/components/TripCard'
 import { useTrips } from '../features/trips/hooks/useTrips'
 import { extractErrorMessage } from '@shared/api/error'
 
 const SKELETON_ITEM_COUNT = 3
 
+interface TripListLocationState {
+  successMessage?: string
+}
+
 // /trips 旅行計画一覧画面
 export function TripListPage() {
   const { data: trips, isLoading, isError, error, refetch, isRefetching } = useTrips()
+
+  // 登録・更新画面からの遷移直後にのみ成功通知を表示する。
+  // ブラウザの再読み込みや戻る操作で再表示されないよう、表示後にlocation.stateをクリアする。
+  const location = useLocation()
+  const navigate = useNavigate()
+  const locationState = location.state as TripListLocationState | null
+  const [successMessage, setSuccessMessage] = useState(locationState?.successMessage ?? null)
+
+  const handleCloseSuccess = () => {
+    setSuccessMessage(null)
+    if (locationState?.successMessage) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }
 
   return (
     <Box
@@ -113,6 +133,22 @@ export function TripListPage() {
           </Stack>
         )}
       </Container>
+
+      <Snackbar
+        open={successMessage !== null}
+        autoHideDuration={4000}
+        onClose={handleCloseSuccess}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          severity="success"
+          variant="filled"
+          onClose={handleCloseSuccess}
+          sx={{ borderRadius: 2.5 }}
+        >
+          {successMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   )
 }

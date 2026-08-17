@@ -1,16 +1,17 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Alert, Box, Container, Paper, Snackbar, Stack, Typography } from '@mui/material'
 import FlightTakeoffRoundedIcon from '@mui/icons-material/FlightTakeoffRounded'
-import { TripCreateForm } from '../features/trips/components/TripCreateForm'
+import { TripForm } from '../features/trips/components/TripForm'
 import { useCreateTrip } from '../features/trips/hooks/useCreateTrip'
 import { extractErrorMessage } from '@shared/api/error'
 import type { TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
 
 // /trips/new 旅行計画登録画面
 export function TripCreatePage() {
+  const navigate = useNavigate()
   const createTrip = useCreateTrip()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [showSuccess, setShowSuccess] = useState(false)
 
   const handleSubmit = (values: TripCreateFormValues) => {
     // 送信中の二重クリックによる多重送信を防ぐ
@@ -26,7 +27,8 @@ export function TripCreatePage() {
         memo: values.memo,
       },
       {
-        onSuccess: () => setShowSuccess(true),
+        onSuccess: () =>
+          navigate('/trips', { state: { successMessage: '旅行計画を登録しました' } }),
         onError: (error) => setErrorMessage(extractErrorMessage(error)),
       },
     )
@@ -74,25 +76,15 @@ export function TripCreatePage() {
             boxShadow: '0 24px 48px -24px rgba(15, 23, 42, 0.18)',
           }}
         >
-          <TripCreateForm onSubmit={handleSubmit} isSubmitting={createTrip.isPending} />
+          <TripForm
+            onSubmit={handleSubmit}
+            onCancel={() => navigate('/trips')}
+            isSubmitting={createTrip.isPending}
+            submitLabel="登録する"
+            formAriaLabel="旅行計画を作成"
+          />
         </Paper>
       </Container>
-
-      <Snackbar
-        open={showSuccess}
-        autoHideDuration={4000}
-        onClose={() => setShowSuccess(false)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert
-          severity="success"
-          variant="filled"
-          onClose={() => setShowSuccess(false)}
-          sx={{ borderRadius: 2.5 }}
-        >
-          旅行計画を登録しました
-        </Alert>
-      </Snackbar>
 
       <Snackbar
         open={errorMessage !== null}

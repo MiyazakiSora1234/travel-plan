@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, type MemoryRouterProps } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { TripListPage } from './TripListPage'
 import { listTrips } from '../features/trips/api/tripsApi'
@@ -12,13 +12,13 @@ vi.mock('../features/trips/api/tripsApi', () => ({
 
 const mockedListTrips = vi.mocked(listTrips)
 
-function renderPage() {
+function renderPage(initialEntries: MemoryRouterProps['initialEntries'] = ['/trips']) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>
         <TripListPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -85,5 +85,26 @@ describe('TripListPage', () => {
 
     await waitFor(() => expect(mockedListTrips).toHaveBeenCalledTimes(2))
     expect(await screen.findByText('東京・京都旅行')).toBeInTheDocument()
+  })
+
+  it('各Tripに編集画面へのリンクを表示する', async () => {
+    mockedListTrips.mockResolvedValue([trip])
+
+    renderPage()
+
+    expect(await screen.findByRole('link', { name: '東京・京都旅行を編集' })).toHaveAttribute(
+      'href',
+      '/trips/1/edit',
+    )
+  })
+
+  it('登録・更新画面からの遷移時にsuccessMessageがあれば成功通知を表示する', async () => {
+    mockedListTrips.mockResolvedValue([trip])
+
+    renderPage([
+      { pathname: '/trips', state: { successMessage: '旅行計画を更新しました' } },
+    ])
+
+    expect(await screen.findByText('旅行計画を更新しました')).toBeInTheDocument()
   })
 })

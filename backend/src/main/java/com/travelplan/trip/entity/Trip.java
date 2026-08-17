@@ -15,8 +15,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 /**
  * 旅行計画の永続化モデル。API入出力にはこのクラスを直接使わず、必ずDTOを介する。
- * 不用意な書き換えを防ぐため公開Setterは持たない。JPAは{@code @Id}がフィールドにあるため
- * フィールドアクセス（リフレクション）で永続化・更新が行われ、Setter無しでも動作する。
+ * 不用意な書き換えを防ぐため汎用的な公開Setterは持たず、更新は{@link #update}のみで行う。
+ * JPAは{@code @Id}がフィールドにあるためフィールドアクセス（リフレクション）で永続化・更新が
+ * 行われ、Setter無しでも動作する。
  */
 @Entity
 @Table(name = "trips")
@@ -49,6 +50,13 @@ public class Trip {
     private OffsetDateTime updatedAt;
 
     public Trip(String name, LocalDate startDate, LocalDate endDate, String memo) {
+        this.name = name;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.memo = memo;
+    }
+
+    public void update(String name, LocalDate startDate, LocalDate endDate, String memo) {
         this.name = name;
         this.startDate = startDate;
         this.endDate = endDate;

@@ -1,5 +1,5 @@
 import type { ApiClient } from './client'
-import type { CreateTripInput, Trip } from '../types/trip'
+import type { CreateTripInput, Trip, UpdateTripInput } from '../types/trip'
 
 // 旅行計画登録API（POST /api/v1/trips）の呼び出し
 export function createTripApi(api: ApiClient) {
@@ -13,6 +13,22 @@ export function createTripApi(api: ApiClient) {
 export function listTripsApi(api: ApiClient) {
   return async (): Promise<Trip[]> => {
     const response = await api.get<Trip[]>('/api/v1/trips')
+    return response.data
+  }
+}
+
+// 旅行計画取得API（GET /api/v1/trips/{id}）の呼び出し
+export function getTripApi(api: ApiClient) {
+  return async (id: number): Promise<Trip> => {
+    const response = await api.get<Trip>(`/api/v1/trips/${id}`)
+    return response.data
+  }
+}
+
+// 旅行計画更新API（PUT /api/v1/trips/{id}）の呼び出し
+export function updateTripApi(api: ApiClient) {
+  return async (id: number, input: UpdateTripInput): Promise<Trip> => {
+    const response = await api.put<Trip>(`/api/v1/trips/${id}`, input)
     return response.data
   }
 }

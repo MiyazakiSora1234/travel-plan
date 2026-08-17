@@ -10,6 +10,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
@@ -42,6 +43,24 @@ public class GlobalExceptionHandler {
                 "VALIDATION_ERROR",
                 "入力内容に誤りがあります",
                 List.of(new ErrorResponse.FieldErrorItem(ex.getField(), ex.getMessage())));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
+        ErrorResponse response = ErrorResponse.of("NOT_FOUND", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    /**
+     * Path Variableの型変換に失敗した場合（例: {@code /api/v1/trips/abc} のようにidが数値でない）。
+     * URLの値をそのまま信用せず、DBに問い合わせる前に400として弾く。
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ErrorResponse response = ErrorResponse.of(
+                "INVALID_REQUEST_BODY",
+                "リクエストが不正です");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 

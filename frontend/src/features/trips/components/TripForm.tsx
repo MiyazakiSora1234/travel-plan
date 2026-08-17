@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { Box, Button, InputAdornment, Stack, TextField, Typography } from '@mui/material'
 import FlightRoundedIcon from '@mui/icons-material/FlightRounded'
@@ -7,13 +8,33 @@ import NotesRoundedIcon from '@mui/icons-material/NotesRounded'
 import { tripCreateSchema, type TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
 import { TRIP_MEMO_MAX_LENGTH, TRIP_NAME_MAX_LENGTH } from '@shared/constants/trip'
 
-interface TripCreateFormProps {
-  onSubmit: (values: TripCreateFormValues) => void
-  isSubmitting: boolean
+const EMPTY_VALUES: TripCreateFormValues = {
+  name: '',
+  startDate: '',
+  endDate: '',
+  memo: '',
 }
 
-// 旅行計画登録フォーム。バリデーションはZodスキーマ（tripCreateSchema）に委譲する
-export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) {
+interface TripFormProps {
+  // 更新画面で既存データを反映する場合に指定する。APIから非同期に取得するため、
+  // useFormのdefaultValuesには直接渡さず、値が届いたらreset()で反映する。
+  defaultValues?: TripCreateFormValues
+  onSubmit: (values: TripCreateFormValues) => void
+  onCancel: () => void
+  isSubmitting: boolean
+  submitLabel: string
+  formAriaLabel: string
+}
+
+// 旅行計画の登録・更新で共通利用するフォーム。バリデーションはZodスキーマ（tripCreateSchema）に委譲する
+export function TripForm({
+  defaultValues,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  submitLabel,
+  formAriaLabel,
+}: TripFormProps) {
   const {
     register,
     handleSubmit,
@@ -21,16 +42,17 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
     formState: { errors },
   } = useForm<TripCreateFormValues>({
     resolver: zodResolver(tripCreateSchema),
-    defaultValues: {
-      name: '',
-      startDate: '',
-      endDate: '',
-      memo: '',
-    },
+    defaultValues: defaultValues ?? EMPTY_VALUES,
   })
 
+  useEffect(() => {
+    if (defaultValues) {
+      reset(defaultValues)
+    }
+  }, [defaultValues, reset])
+
   return (
-    <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)} aria-label="旅行計画を作成">
+    <Box component="form" noValidate onSubmit={handleSubmit(onSubmit)} aria-label={formAriaLabel}>
       <Stack spacing={3.5}>
         <TextField
           label="旅行名"
@@ -110,11 +132,11 @@ export function TripCreateForm({ onSubmit, isSubmitting }: TripCreateFormProps) 
           spacing={1.5}
           sx={{ justifyContent: 'flex-end', pt: 1 }}
         >
-          <Button variant="text" color="inherit" onClick={() => reset()} disabled={isSubmitting}>
+          <Button variant="text" color="inherit" onClick={onCancel} disabled={isSubmitting}>
             キャンセル
           </Button>
           <Button type="submit" variant="contained" disableElevation disabled={isSubmitting}>
-            {isSubmitting ? '送信中...' : '登録'}
+            {isSubmitting ? '送信中...' : submitLabel}
           </Button>
         </Stack>
       </Stack>

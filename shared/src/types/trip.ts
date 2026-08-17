@@ -16,3 +16,7 @@ export interface CreateTripInput {
   endDate: string
   memo?: string
 }
+
+// 旅行計画更新APIのリクエストボディ（Backendの UpdateTripRequest に対応）。
+// 更新対象のIDはURL Path Parameterで渡すため、ここには含めない。
+export type UpdateTripInput = CreateTripInput

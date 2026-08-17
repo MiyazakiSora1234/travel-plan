@@ -7,13 +7,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.travelplan.common.exception.BusinessRuleException;
+import com.travelplan.common.exception.ResourceNotFoundException;
 import com.travelplan.trip.dto.request.CreateTripRequest;
+import com.travelplan.trip.dto.request.UpdateTripRequest;
 import com.travelplan.trip.dto.response.TripResponse;
 import com.travelplan.trip.entity.Trip;
 import com.travelplan.trip.repository.TripRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -114,5 +117,66 @@ class TripServiceTest {
         List<TripResponse> response = tripService.getTrips();
 
         assertThat(response).isEmpty();
+    }
+
+    @Test
+    void IDを指定して旅行計画を取得できる() {
+        Trip trip = persistedTrip("東京・京都旅行", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5), null, 1L);
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(trip));
+
+        TripResponse response = tripService.getTrip(1L);
+
+        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.name()).isEqualTo("東京・京都旅行");
+    }
+
+    @Test
+    void 存在しないIDを取得しようとすると例外になる() {
+        when(tripRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> tripService.getTrip(999L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void 旅行計画を更新できる() {
+        Trip trip = persistedTrip("東京・京都旅行", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5), null, 1L);
+        when(tripRepository.findById(1L)).thenReturn(Optional.of(trip));
+        when(tripRepository.saveAndFlush(any(Trip.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateTripRequest request = new UpdateTripRequest(
+                "東京・京都旅行（更新）",
+                LocalDate.of(2026, 9, 2),
+                LocalDate.of(2026, 9, 6),
+                "ホテル予約済み");
+
+        TripResponse response = tripService.updateTrip(1L, request);
+
+        assertThat(response.id()).isEqualTo(1L);
+        assertThat(response.name()).isEqualTo("東京・京都旅行（更新）");
+        assertThat(response.startDate()).isEqualTo(LocalDate.of(2026, 9, 2));
+        assertThat(response.endDate()).isEqualTo(LocalDate.of(2026, 9, 6));
+        assertThat(response.memo()).isEqualTo("ホテル予約済み");
+    }
+
+    @Test
+    void 存在しないIDを更新しようとすると例外になる() {
+        when(tripRepository.findById(999L)).thenReturn(Optional.empty());
+
+        UpdateTripRequest request = new UpdateTripRequest(
+                "旅行", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 5), null);
+
+        assertThatThrownBy(() -> tripService.updateTrip(999L, request))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void 更新時に終了日が開始日より前だと例外になる() {
+        UpdateTripRequest request = new UpdateTripRequest(
+                "無効な旅行", LocalDate.of(2026, 9, 5), LocalDate.of(2026, 9, 1), null);
+
+        assertThatThrownBy(() -> tripService.updateTrip(1L, request))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("終了日");
     }
 }

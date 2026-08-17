@@ -1,5 +1,7 @@
-import { Card, CardActionArea, CardContent, Stack, Typography } from '@mui/material'
+import { Button, Card, CardActionArea, CardActions, CardContent, Stack, Typography } from '@mui/material'
+import { Link as RouterLink } from 'react-router-dom'
 import FlightRoundedIcon from '@mui/icons-material/FlightRounded'
+import EditRoundedIcon from '@mui/icons-material/EditRounded'
 import { formatTripDateRange, calculateTripDays } from '@shared/utils/date'
 import type { Trip } from '@shared/types/trip'
 
@@ -15,7 +17,7 @@ export function TripCard({ trip, onClick }: TripCardProps) {
   const memo = trip.memo?.trim()
 
   const content = (
-    <CardContent sx={{ p: 2.5 }}>
+    <CardContent sx={{ p: 2.5, pb: 1.5 }}>
       <Stack spacing={1}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <FlightRoundedIcon fontSize="small" color="primary" />
@@ -68,6 +70,17 @@ export function TripCard({ trip, onClick }: TripCardProps) {
       ) : (
         content
       )}
+      <CardActions sx={{ justifyContent: 'flex-end', px: 2.5, pb: 2, pt: 0 }}>
+        <Button
+          component={RouterLink}
+          to={`/trips/${trip.id}/edit`}
+          size="small"
+          startIcon={<EditRoundedIcon fontSize="small" />}
+          aria-label={`${trip.name}を編集`}
+        >
+          編集
+        </Button>
+      </CardActions>
     </Card>
   )
 }
