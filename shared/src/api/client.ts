@@ -17,5 +17,7 @@ export function createApiClient({ baseUrl }: CreateApiClientOptions): ApiClient 
     headers: {
       'Content-Type': 'application/json',
     },
+    // ネットワーク障害時に無限に待機しないよう、上限を設ける
+    timeout: 10_000,
   })
 }

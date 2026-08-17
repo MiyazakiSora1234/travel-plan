@@ -1,0 +1,1582 @@
+あなたはシニアバックエンドエンジニア兼アーキテクトです。
+
+このプロジェクトの backend を、
+「現在動いているコードを綺麗にする」レベルではなく、
+
+- 堅牢性
+- 保守性
+- 可読性
+- テスト容易性
+- 型安全性
+- トランザクション整合性
+- セキュリティ
+- パフォーマンス
+- 障害解析性
+- 将来の機能拡張性
+
+を考慮した、プロダクション品質のSpring Bootバックエンドへ
+段階的にリファクタリングしてください。
+
+ただし、過剰設計は禁止です。
+
+現在は小～中規模のTravel Planアプリケーションなので、
+マイクロサービス化や不要な抽象化は行わず、
+
+「Modular Monolith + 明確なLayering」
+
+を基本方針としてください。
+
+==================================================
+# 0. 最重要ルール
+==================================================
+
+いきなりコードを書き換えないでください。
+
+最初にbackend全体を読み、
+
+1. 現在のアーキテクチャ
+2. パッケージ構成
+3. Controller
+4. Service
+5. Repository
+6. Entity
+7. DTO
+8. Exception
+9. Validation
+10. Transaction
+11. Database access
+12. Configuration
+13. Security
+14. Test
+15. Dependency
+
+を調査してください。
+
+その後、
+
+「現在の問題点」
+「なぜ問題なのか」
+「どう改善するか」
+
+を整理してから変更してください。
+
+既存APIを壊さないことを最優先します。
+
+==================================================
+# 1. 技術スタック
+==================================================
+
+Backend：
+
+- Java
+- Spring Boot
+- Gradle
+- PostgreSQL
+- REST API
+
+現在の実装を尊重してください。
+
+既存dependencyを確認してから判断してください。
+
+勝手に以下を追加しないでください。
+
+- Lombok
+- MapStruct
+- QueryDSL
+- JPA
+- Redis
+- Kafka
+- Spring Security
+
+など。
+
+必要性を確認し、
+導入する場合は理由を明確にしてください。
+
+==================================================
+# 2. 目標アーキテクチャ
+==================================================
+
+以下を基本方針としてください。
+
+API Layer
+    ↓
+Application Layer
+    ↓
+Domain Layer
+    ↓
+Infrastructure Layer
+    ↓
+PostgreSQL
+
+ただし、厳密なDDDやClean Architectureを目的にしない。
+
+目的は、
+
+「変更理由が異なるコードを分離すること」
+
+です。
+
+==================================================
+# 3. 推奨パッケージ構成
+==================================================
+
+現在の構成を確認したうえで、
+必要であれば以下に近づけてください。
+
+src/main/java/.../
+
+├── common/
+│   ├── exception/
+│   ├── response/
+│   ├── validation/
+│   └── config/
+│
+├── trip/
+│   ├── controller/
+│   ├── service/
+│   ├── domain/
+│   ├── repository/
+│   └── dto/
+│
+└── ...
+
+重要：
+
+巨大な
+
+controller/
+service/
+repository/
+entity/
+
+という横断的パッケージ構成にしすぎない。
+
+機能単位でまとまる、
+
+Feature-based Package Structure
+
+を優先してください。
+
+例：
+
+trip/
+ ├── controller
+ ├── service
+ ├── domain
+ ├── repository
+ └── dto
+
+将来的に、
+
+spot/
+schedule/
+user/
+
+などを追加しても、
+既存コードが肥大化しない構成を目指してください。
+
+==================================================
+# 4. Controller
+==================================================
+
+Controllerは薄くしてください。
+
+Controllerの責務：
+
+- HTTP Requestを受け取る
+- Request DTOを受け取る
+- Validation
+- Application Serviceを呼ぶ
+- Response DTOを返す
+
+Controllerに以下を書かない。
+
+- DB処理
+- 複雑なBusiness Logic
+- Transaction
+- Entity操作
+- 複雑なif/else
+- SQL
+- repository直接操作
+
+悪い例：
+
+Controller
+ ↓
+repository.save()
+
+良い例：
+
+Controller
+ ↓
+TripService
+ ↓
+Repository
+
+==================================================
+# 5. DTO
+==================================================
+
+EntityをREST APIのRequest/Responseとして直接公開しない。
+
+例えば、
+
+TripEntity
+ ↓
+TripResponse
+
+と分離。
+
+Request：
+
+TripCreateRequest
+
+Response：
+
+TripResponse
+
+Update：
+
+TripUpdateRequest
+
+など、
+
+用途に応じてDTOを分ける。
+
+理由：
+
+- API契約とDB構造を分離
+- Mass Assignment防止
+- DB変更の影響をAPIに波及させない
+- 将来的なVersioning
+
+==================================================
+# 6. Validation
+==================================================
+
+Bean Validationを適切に使用してください。
+
+例：
+
+@NotBlank
+@Size
+@Valid
+@Pattern
+
+など。
+
+ただし、
+
+ControllerだけでValidationを完結させない。
+
+Business RuleはService / Domain側で保証する。
+
+例：
+
+開始日 <= 終了日
+
+これは単純な文字列validationではなく、
+ドメインルールとして扱う。
+
+==================================================
+# 7. Domain Model
+==================================================
+
+可能な限りPrimitive obsessionを減らしてください。
+
+ただし、Value Objectを乱用しない。
+
+例えば、
+
+TripDateRange
+
+のように、
+
+「開始日と終了日は常にセットで意味を持つ」
+
+のであれば、
+Value Object化を検討する。
+
+例：
+
+TripDateRange
+ ├── startDate
+ └── endDate
+
+constructorで、
+
+startDate <= endDate
+
+を保証する。
+
+これにより、
+
+「不正なDateRangeを生成できない」
+
+設計を目指す。
+
+ただし、現在の規模に対して複雑になりすぎる場合は採用しない。
+
+==================================================
+# 8. Service
+==================================================
+
+ServiceはUse Case/Application Serviceとして設計。
+
+例えば、
+
+createTrip()
+getTrips()
+getTrip()
+updateTrip()
+deleteTrip()
+
+など。
+
+Serviceには、
+
+「旅行を作成する」
+
+というユースケースの流れを書く。
+
+例：
+
+createTrip()
+ ↓
+validate business rule
+ ↓
+create domain object
+ ↓
+repository.save()
+ ↓
+response mapping
+
+ServiceにHTTP依存を持ち込まない。
+
+以下は禁止。
+
+HttpServletRequest
+ResponseEntity
+HTTP status
+
+などをServiceへ持ち込むこと。
+
+==================================================
+# 9. Transaction
+==================================================
+
+Transaction境界をService/Application Serviceに置く。
+
+例：
+
+@Transactional
+public TripResponse createTrip(...) {
+    ...
+}
+
+ただし、
+
+読み取り処理に無条件で@Transactionalを付けない。
+
+readOnlyが適切な場合は、
+
+@Transactional(readOnly = true)
+
+を検討。
+
+複数DB操作が1つのユースケースを構成する場合、
+途中だけ成功しないようtransactionを設計する。
+
+==================================================
+# 10. Repository
+==================================================
+
+RepositoryはDBアクセスの責務だけ。
+
+Serviceから、
+
+repository.find...
+repository.save...
+
+を呼び出す。
+
+RepositoryにBusiness Logicを書かない。
+
+また、
+
+「何でもRepositoryに突っ込む」
+
+設計は禁止。
+
+==================================================
+# 11. Entity
+==================================================
+
+DB EntityとDomain Modelの責務を確認。
+
+現在のORM方式を尊重してください。
+
+JPA/Hibernateを使っている場合：
+
+- EntityをAPI Responseに直接返さない
+- Lazy Loading問題を確認
+- N+1を確認
+- Entityのsetter乱用を避ける
+- 不変性を可能な限り維持
+- equals/hashCodeの実装を慎重に扱う
+
+特に、
+
+toString()
+equals()
+hashCode()
+
+でLazy Loadingや循環参照が発生しないか確認。
+
+==================================================
+# 12. Database
+==================================================
+
+PostgreSQLを前提とする。
+
+以下を監査。
+
+- Primary Key
+- Foreign Key
+- NOT NULL
+- UNIQUE
+- CHECK
+- INDEX
+- DEFAULT
+- timestamp
+- timezone
+- migration
+
+アプリケーションだけで保証しているデータ整合性を洗い出す。
+
+ただし既存DBを破壊する変更は禁止。
+
+必要なDB変更がある場合は、
+
+1. migration案
+2. 既存データへの影響
+3. rollback方法
+
+を先に説明してください。
+
+==================================================
+# 13. 日付・時刻
+==================================================
+
+Travel Planでは日付が重要。
+
+以下を不用意に使用しない。
+
+java.util.Date
+LocalDateTime
+
+旅行の日付だけを表す場合は、
+
+LocalDate
+
+を第一候補とする。
+
+例：
+
+startDate
+endDate
+
+はLocalDate。
+
+「瞬間」を表す場合のみ、
+
+Instant / OffsetDateTime / ZonedDateTime
+
+を検討する。
+
+DB timezoneとAPI JSON形式も確認する。
+
+==================================================
+# 14. Exception Handling
+==================================================
+
+Controllerごとにtry/catchを大量に書かない。
+
+Global Exception Handlerを使用する。
+
+@ControllerAdvice
+@RestControllerAdvice
+
+など。
+
+エラー形式を統一。
+
+例：
+
+{
+  "code": "VALIDATION_ERROR",
+  "message": "入力内容に誤りがあります",
+  "errors": [
+    {
+      "field": "name",
+      "message": "旅行名は100文字以内で入力してください"
+    }
+  ]
+}
+
+HTTP statusとapplication error codeを分離。
+
+例：
+
+400
+VALIDATION_ERROR
+
+404
+TRIP_NOT_FOUND
+
+409
+TRIP_CONFLICT
+
+500
+INTERNAL_SERVER_ERROR
+
+==================================================
+# 15. Error Security
+==================================================
+
+絶対にAPI Responseへ以下を露出しない。
+
+- Stack Trace
+- SQL
+- DB password
+- Internal hostname
+- File path
+- Java class name
+- Environment variable
+- Secret
+- Token
+
+Productionでは、
+
+「ユーザーに必要な情報」
+
+だけ返す。
+
+詳細はログへ。
+
+==================================================
+# 16. Logging
+==================================================
+
+System.out.printlnは禁止。
+
+適切なLoggerを使用。
+
+例：
+
+private static final Logger log =
+    LoggerFactory.getLogger(TripService.class);
+
+ログレベルを適切に使う。
+
+ERROR：
+
+予期しない障害
+
+WARN：
+
+異常だがシステム継続可能
+
+INFO：
+
+重要な業務イベント
+
+DEBUG：
+
+開発・調査用
+
+パスワード、Token、Secret、個人情報をログに出さない。
+
+==================================================
+# 17. Request ID
+==================================================
+
+可能であればRequest IDを導入。
+
+Request
+
+↓
+
+Filter / Interceptor
+
+↓
+
+requestId生成
+
+↓
+
+MDC
+
+↓
+
+Controller
+
+↓
+
+Service
+
+↓
+
+Log
+
+という流れ。
+
+障害発生時に、
+
+「このHTTP Requestに関係するログ」
+
+を追えるようにする。
+
+==================================================
+# 18. API Response
+==================================================
+
+ResponseEntityをControllerで乱用しない。
+
+プロジェクト全体でResponse設計を統一。
+
+例えば、
+
+GET /trips
+
+{
+  "data": [...]
+}
+
+などにするか、
+
+現在のAPI仕様を維持する。
+
+重要なのは、
+
+APIごとにバラバラなResponse形式にしないこと。
+
+既存Frontend/Mobileとの互換性を最優先。
+
+==================================================
+# 19. HTTP Status
+==================================================
+
+適切なHTTP statusを使用。
+
+GET成功：
+
+200
+
+POST成功：
+
+201
+
+DELETE成功：
+
+204
+
+Validation：
+
+400
+
+Authentication：
+
+401
+
+Authorization：
+
+403
+
+Not Found：
+
+404
+
+Conflict：
+
+409
+
+Server Error：
+
+500
+
+ただし既存API仕様との互換性を確認。
+
+==================================================
+# 20. API Versioning
+==================================================
+
+現在のAPIが、
+
+/api/v1/...
+
+になっている場合、
+その構造を維持。
+
+将来的に、
+
+/api/v2/
+
+へ移行できる余地を残す。
+
+==================================================
+# 21. Security
+==================================================
+
+以下を監査。
+
+- CORS
+- CSRF
+- SQL Injection
+- Mass Assignment
+- IDOR
+- Input Validation
+- Error information leakage
+- Secret exposure
+- Debug configuration
+- Dependency vulnerability
+- Actuator exposure
+- HTTP headers
+
+認証機能がまだない場合、
+勝手に認証システムを実装しない。
+
+ただし、
+
+「認証導入時にどこへ入れるべきか」
+
+は設計として明確にする。
+
+==================================================
+# 22. CORS
+==================================================
+
+Frontend / Mobileからのアクセスを考慮。
+
+開発：
+
+localhost
+192.168.1.15
+
+など。
+
+Production：
+
+実際のFrontend originのみ。
+
+以下は禁止。
+
+allowOrigins("*")
+
+をProductionで無条件使用。
+
+credentialsとの組み合わせにも注意。
+
+==================================================
+# 23. Configuration
+==================================================
+
+Configurationを整理。
+
+application.yml
+application-dev.yml
+application-test.yml
+application-prod.yml
+
+など、現在の方式に合わせる。
+
+SecretをGitへcommitしない。
+
+環境変数から注入する。
+
+例：
+
+DATABASE_URL
+DATABASE_USERNAME
+DATABASE_PASSWORD
+
+など。
+
+コードに、
+
+password
+host
+API key
+
+をハードコードしない。
+
+==================================================
+# 24. DB Connection Pool
+==================================================
+
+PostgreSQLへのConnection Poolを確認。
+
+HikariCPを使用している場合、
+
+- maximumPoolSize
+- minimumIdle
+- connectionTimeout
+- idleTimeout
+- maxLifetime
+
+を確認。
+
+ただし適当に数値を設定しない。
+
+現在のDocker/EC2/RDS等の構成と
+同時接続数を考慮して設定。
+
+==================================================
+# 25. Timeout
+==================================================
+
+無限待ちを作らない。
+
+DB
+HTTP Client
+外部API
+
+などのtimeoutを確認。
+
+==================================================
+# 26. Retry
+==================================================
+
+Retryを安易に導入しない。
+
+特に、
+
+POST /trips
+
+のような非冪等処理を自動Retryすると
+二重登録の可能性がある。
+
+Retryする場合、
+
+- timeout
+- idempotency
+- retryable exception
+
+を考慮する。
+
+==================================================
+# 27. Concurrency
+==================================================
+
+同時実行を考慮。
+
+例えば、
+
+同時に同じTripを更新
+
+同じTripを二重作成
+
+など。
+
+必要に応じて、
+
+- DB constraint
+- optimistic locking
+- transaction
+
+などを検討。
+
+ただし不要な悲観ロックは禁止。
+
+==================================================
+# 28. N+1
+==================================================
+
+Repository / ORMを確認。
+
+一覧APIで、
+
+1 query
++
+N queries
+
+になっていないか確認。
+
+Trip一覧などは特に確認。
+
+ただし、
+
+「N+1があるかもしれない」
+
+という理由だけで複雑なQueryへ変更しない。
+
+実際のSQLを確認して判断。
+
+==================================================
+# 29. Pagination
+==================================================
+
+一覧APIが将来大量データになった場合を考慮。
+
+現在Trip数が少ないからといって、
+
+SELECT * FROM trips
+
+を無制限で返す設計を安易に拡張しない。
+
+ただし現時点でPaginationがAPI仕様にない場合、
+勝手にAPI仕様を変更しない。
+
+必要性を設計書に記載。
+
+==================================================
+# 30. Performance
+==================================================
+
+以下を監査。
+
+- unnecessary DB access
+- N+1
+- missing index
+- excessive object creation
+- unnecessary serialization
+- unnecessary API calls
+- large response
+- inefficient query
+
+測定根拠のないmicro optimizationは禁止。
+
+==================================================
+# 31. Test Strategy
+==================================================
+
+テストを「数を増やすこと」ではなく、
+「壊してはいけない契約を守ること」
+として設計。
+
+最低限、
+
+Unit Test
+Integration Test
+API Test
+
+を適切に配置。
+
+特にCritical Path：
+
+Trip Create
+Trip List
+Trip Get
+Trip Update
+Trip Delete
+
+を重点的にテスト。
+
+==================================================
+# 32. Test Pyramid
+==================================================
+
+基本：
+
+多数
+ ↓
+Unit Test
+
+中程度
+ ↓
+Integration Test
+
+少数
+ ↓
+E2E/API Test
+
+すべてをE2Eにしない。
+
+ServiceのBusiness RuleはUnit Test。
+
+RepositoryはIntegration Test。
+
+API contractはAPI Test。
+
+==================================================
+# 33. Testcontainers
+==================================================
+
+PostgreSQL依存のIntegration Testについて、
+現在の環境とdependencyを確認。
+
+可能であればTestcontainersを検討。
+
+理由：
+
+「開発者のローカルPostgreSQL」と
+「CIのPostgreSQL」の差異を減らす。
+
+ただし導入コストと既存構成を確認してから判断。
+
+==================================================
+# 34. Static Analysis
+==================================================
+
+現在利用している場合は、
+
+- Checkstyle
+- SpotBugs
+- PMD
+- ArchUnit
+
+などを確認。
+
+必要であれば導入候補として提案。
+
+特にArchUnitについては、
+
+Controller → Repository直接アクセス禁止
+
+など、
+アーキテクチャルールをコードとして保証できるか検討。
+
+==================================================
+# 35. Dependency
+==================================================
+
+不要なdependencyを洗い出す。
+
+脆弱性のあるdependencyを確認。
+
+ただし、
+
+「最新版だから」
+
+という理由だけでUpgradeしない。
+
+Spring Boot compatibilityを確認。
+
+==================================================
+# 36. Health Check
+==================================================
+
+Health endpointを確認。
+
+必要に応じて、
+
+Liveness
+Readiness
+
+を分離。
+
+PostgreSQLが落ちている場合、
+
+Readinessが正しく失敗する
+
+など、
+Docker/AWS運用を考慮。
+
+==================================================
+# 37. Graceful Shutdown
+==================================================
+
+Docker環境で、
+
+SIGTERM
+ ↓
+Spring Boot
+ ↓
+Graceful Shutdown
+
+が成立するか確認。
+
+リクエスト処理中にコンテナが突然killされない設計を検討。
+
+==================================================
+# 38. Observability
+==================================================
+
+将来的なAWS運用を考慮。
+
+最低限、
+
+Logs
+Metrics
+Health
+
+を分離。
+
+将来的に、
+
+CloudWatch
+OpenTelemetry
+Prometheus
+Grafana
+
+などへ拡張可能な構造を意識。
+
+ただし現時点で全部導入しない。
+
+==================================================
+# 39. Domain Logic
+==================================================
+
+Business RuleをControllerへ置かない。
+
+例えば、
+
+「旅行開始日は終了日以前でなければならない」
+
+というルールは、
+
+Controllerではなく、
+
+Domain / Service
+
+で保証。
+
+「登録処理の順番」
+
+などのUse CaseはApplication Serviceで管理。
+
+==================================================
+# 40. Null Safety
+==================================================
+
+nullを不用意に許容しない。
+
+Optionalは、
+
+「戻り値が存在しない可能性」
+
+を表す場合に限定。
+
+EntityのfieldをすべてOptionalにするなどの乱用は禁止。
+
+==================================================
+# 41. Immutability
+==================================================
+
+可能な範囲でimmutableな設計を採用。
+
+DTOはrecordを利用できるか検討。
+
+例：
+
+public record TripCreateRequest(
+    @NotBlank String name,
+    @NotNull LocalDate startDate,
+    @NotNull LocalDate endDate,
+    String memo
+) {}
+
+ただし既存コード・Jackson・Validationとの互換性を確認。
+
+==================================================
+# 42. Java Modernization
+==================================================
+
+現在のJava versionを確認。
+
+利用可能なら、
+
+- record
+- sealed interface
+- pattern matching
+- switch expression
+- immutable collection
+
+などを適切に利用。
+
+ただし、
+
+「新しいJava機能を使うこと」
+
+を目的にしない。
+
+可読性が向上する場合のみ使用。
+
+==================================================
+# 43. Mapping
+==================================================
+
+Entity → DTO
+
+DTO → Domain
+
+などのMapping責務を整理。
+
+ControllerにMapping処理を大量に書かない。
+
+ただし、
+
+単純なMappingのためだけに
+過剰なMapper abstractionを作らない。
+
+==================================================
+# 44. Naming
+==================================================
+
+命名を統一。
+
+悪い例：
+
+process()
+handle()
+execute()
+doSomething()
+
+良い例：
+
+createTrip()
+findTrip()
+updateTrip()
+deleteTrip()
+
+Business意味が名前から分かることを優先。
+
+==================================================
+# 45. Code Style
+==================================================
+
+以下を避ける。
+
+- 巨大メソッド
+- 深いif nesting
+- boolean flag地獄
+- magic number
+- magic string
+- static state
+- God Service
+- God Controller
+- Utility class乱立
+- 不要なinterface
+- 不要なabstract class
+
+==================================================
+# 46. Anti Pattern
+==================================================
+
+以下は禁止。
+
+Controller
+ ↓
+Repository
+
+Controller
+ ↓
+Entity
+
+Service
+ ↓
+HttpServletRequest
+
+Repository
+ ↓
+Business Logic
+
+Entity
+ ↓
+REST Response
+
+try/catchを各Controllerへ大量配置
+
+ExceptionをStringだけで判定
+
+Optional.get()乱用
+
+catch(Exception e)だけで握り潰す
+
+System.out.println
+
+DB password hardcode
+
+==================================================
+# 47. API Compatibility
+==================================================
+
+最重要。
+
+現在Frontend/Mobileが利用しているAPIを壊さない。
+
+変更前に、
+
+Frontend
+Mobile
+Backend
+
+のAPI依存関係を確認。
+
+API変更が必要な場合、
+
+勝手に変更せず、
+
+「変更理由」
+「影響範囲」
+「Migration方法」
+
+を報告してください。
+
+==================================================
+# 48. Refactoring Strategy
+==================================================
+
+一度に全コードを書き換えない。
+
+以下の順番で実施。
+
+Phase 1
+現状分析
+
+Phase 2
+Exception / Error Response整理
+
+Phase 3
+DTO / Validation整理
+
+Phase 4
+Controller薄型化
+
+Phase 5
+Service整理
+
+Phase 6
+Repository整理
+
+Phase 7
+Domain整理
+
+Phase 8
+Transaction整理
+
+Phase 9
+Logging / Observability
+
+Phase 10
+Test強化
+
+Phase 11
+Configuration整理
+
+Phase 12
+不要コード削除
+
+各Phaseごとにテスト。
+
+==================================================
+# 49. Git安全性
+==================================================
+
+作業前に、
+
+git status
+
+を確認。
+
+未コミット変更を勝手に削除しない。
+
+既存変更を破壊しない。
+
+git reset --hardは禁止。
+
+git checkout -- .は禁止。
+
+既存ファイルを削除する場合、
+本当に不要であることを確認。
+
+==================================================
+# 50. 完了条件
+==================================================
+
+以下をすべて満たす。
+
+[Architecture]
+
+□ Feature-based構成
+□ Controller薄型化
+□ Service責務明確
+□ Repository責務明確
+□ Domain Logic分離
+□ DTO分離
+□ Entity直接公開なし
+
+[Validation]
+
+□ Request Validation
+□ Business Validation
+□ DB Constraint
+
+[Error]
+
+□ Global Exception Handler
+□ Error Response統一
+□ Stack Trace非公開
+
+[Security]
+
+□ Secret非公開
+□ CORS確認
+□ SQL Injection対策
+□ Input Validation
+□ Error Leakage防止
+
+[Database]
+
+□ Transaction確認
+□ Index確認
+□ N+1確認
+□ Constraint確認
+
+[Performance]
+
+□ unnecessary query確認
+□ N+1確認
+□ Connection Pool確認
+
+[Observability]
+
+□ Logging
+□ Request ID
+□ Health Check
+
+[Test]
+
+□ Unit Test
+□ Integration Test
+□ API Test
+□ Critical Path Test
+
+[Code Quality]
+
+□ Dead Code削除
+□ Unused dependency確認
+□ Naming整理
+□ Magic Number削減
+□ Magic String削減
+
+==================================================
+# 51. 実行コマンド
+==================================================
+
+最終的に、
+
+./gradlew clean test
+
+./gradlew build
+
+を実行。
+
+利用可能なら、
+
+./gradlew check
+
+も実行。
+
+失敗した場合は、
+エラーを隠さず原因を特定して修正。
+
+==================================================
+# 52. 最終報告
+==================================================
+
+作業完了後、以下を必ず出力してください。
+
+## Architecture
+
+変更前：
+...
+
+変更後：
+...
+
+## Directory
+
+主要パッケージ構成。
+
+## Refactoring
+
+何を変更したか。
+
+## Security
+
+何を改善したか。
+
+## Database
+
+何を改善したか。
+
+## Error Handling
+
+どう統一したか。
+
+## Transaction
+
+どこにTransaction境界を置いたか。
+
+## Testing
+
+追加・変更したテスト。
+
+## Performance
+
+改善した点。
+
+## Dependency
+
+追加・削除・更新したdependency。
+
+## Breaking Changes
+
+API/DBの互換性への影響。
+
+「なし」の場合も明記。
+
+## Remaining Issues
+
+今回あえて残した問題。
+
+## Recommended Next Steps
+
+次にやるべき改善。
+
+==================================================
+# 最終方針
+==================================================
+
+このBackendは、
+
+「動けばいいBackend」
+
+ではなく、
+
+「3年後に別のエンジニアが参加しても安全に変更できるBackend」
+
+を目指してください。
+
+ただし、
+
+Enterprise Architectureを真似るためのEnterprise Architecture
+
+にはしないでください。
+
+最優先するのは、
+
+Simple
++
+Explicit
++
+Testable
++
+Observable
++
+Secure
+
+です。
+
+「高度な書き方」とは、
+コードを難しくすることではありません。
+
+Business Ruleを正しい場所に置き、
+不正な状態を作れないようにし、
+変更の影響範囲を限定し、
+障害時に原因を追跡できるコードを書くことです。
+
+既存コードを十分に読んでから、
+最小限の変更で最大の品質向上を実現してください。

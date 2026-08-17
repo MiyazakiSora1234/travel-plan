@@ -5,6 +5,11 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/travel_plan}
     username: ${APP_DB_USER:travel_plan_app}
     password: ${APP_DB_PASSWORD:}
+    hikari:
+      # デフォルト(30000ms)は障害時にリクエストが長時間ぶら下がる要因になるため、
+      # 明示的に短縮する。maximum-pool-sizeはデフォルト値を明文化するのみ。
+      connection-timeout: 10000
+      maximum-pool-size: 10
   jpa:
     hibernate:
       ddl-auto: validate
@@ -16,6 +21,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 app:
   cors:
@@ -23,6 +30,8 @@ app:
 
 server:
   port: ${SERVER_PORT:8080}
+  # デプロイ時にin-flightのリクエストを強制切断しないよう、進行中の処理が終わるまで待ってからshutdownする
+  shutdown: graceful
 
 # CI/CDのHealth Checkでのみ使用。/actuator/health以外は公開しない。
 management:
@@ -38,3 +47,7 @@ management:
 logging:
   level:
     com.travelplan: INFO
+  # RequestLoggingFilter(common/web)がMDCへ設定するrequestIdを全ログ行に出力する。
+  # リクエスト単位で障害調査時にログを横断的に追跡できるようにするため。
+  pattern:
+    level: '%5p [%X{requestId:-}]'

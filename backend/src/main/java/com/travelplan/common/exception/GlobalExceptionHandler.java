@@ -6,9 +6,11 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * APIのエラーレスポンス形式を統一する。
@@ -49,6 +51,30 @@ public class GlobalExceptionHandler {
                 "INVALID_REQUEST_BODY",
                 "リクエストボディを解釈できませんでした");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    /**
+     * 存在しないpathへのリクエスト（例: typoしたURL）。
+     * spring.web.resources.add-mappingsはfalseだが、DispatcherServletは未マッチ時に
+     * このExceptionを投げるため、汎用Exceptionハンドラ（500）に落ちないよう明示的に処理する。
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex) {
+        ErrorResponse response = ErrorResponse.of(
+                "NOT_FOUND",
+                "指定されたリソースが見つかりません");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    /**
+     * 存在するpathに対して未対応のHTTPメソッドでリクエストされた場合（例: GETのみのpathへPOST）。
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        ErrorResponse response = ErrorResponse.of(
+                "METHOD_NOT_ALLOWED",
+                "このHTTPメソッドはサポートされていません");
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(response);
     }
 
     /**
