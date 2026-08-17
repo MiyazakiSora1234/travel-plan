@@ -55,7 +55,7 @@ public class TripService {
 
         Trip trip = findTripOrThrow(id);
         trip.update(request.name(), request.startDate(), request.endDate(), request.memo());
-        // @UpdateTimestampはflush時に反映されるため、レスポンスの updatedAt を最新にするには明示的にflushする
+        // saveAndFlush: @UpdateTimestampはflush時に反映されるため
         Trip updated = tripRepository.saveAndFlush(trip);
         return TripResponse.from(updated);
     }

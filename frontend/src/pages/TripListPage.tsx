@@ -28,8 +28,6 @@ interface TripListLocationState {
 export function TripListPage() {
   const { data: trips, isLoading, isError, error, refetch, isRefetching } = useTrips()
 
-  // 登録・更新画面からの遷移直後にのみ成功通知を表示する。
-  // ブラウザの再読み込みや戻る操作で再表示されないよう、表示後にlocation.stateをクリアする。
   const location = useLocation()
   const navigate = useNavigate()
   const locationState = location.state as TripListLocationState | null

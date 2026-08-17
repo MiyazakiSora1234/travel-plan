@@ -52,10 +52,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
-    /**
-     * Path Variableの型変換に失敗した場合（例: {@code /api/v1/trips/abc} のようにidが数値でない）。
-     * URLの値をそのまま信用せず、DBに問い合わせる前に400として弾く。
-     */
+    // 例: /api/v1/trips/abc のようにidが数値でない場合
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         ErrorResponse response = ErrorResponse.of(

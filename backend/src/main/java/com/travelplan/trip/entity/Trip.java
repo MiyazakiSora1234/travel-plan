@@ -14,12 +14,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-/**
- * 旅行計画の永続化モデル。API入出力にはこのクラスを直接使わず、必ずDTOを介する。
- * 不用意な書き換えを防ぐため汎用的な公開Setterは持たず、更新は{@link #update}のみで行う。
- * JPAは{@code @Id}がフィールドにあるためフィールドアクセス（リフレクション）で永続化・更新が
- * 行われ、Setter無しでも動作する。
- */
+// API入出力には使わずDTOを介する。公開Setterは持たず、更新は#updateのみで行う。
 @Entity
 @Table(name = "trips")
 @Getter

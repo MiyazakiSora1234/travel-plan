@@ -18,7 +18,6 @@ vi.mock('../features/trips/api/tripsApi', () => ({
 const mockedListTrips = vi.mocked(tripsApi.listTrips)
 
 beforeEach(() => {
-  // テストごとに呼び出し回数をリセットする（vi.mockのfactoryはファイル内で共有されるため）
   mockedListTrips.mockClear()
 })
 

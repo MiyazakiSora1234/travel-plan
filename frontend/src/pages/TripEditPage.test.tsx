@@ -21,7 +21,6 @@ const mockedGetTrip = vi.mocked(tripsApi.getTrip)
 const mockedUpdateTrip = vi.mocked(tripsApi.updateTrip)
 
 beforeEach(() => {
-  // テストごとに呼び出し回数をリセットする（vi.mockのfactoryはファイル内で共有されるため）
   mockedGetTrip.mockClear()
   mockedUpdateTrip.mockClear()
 })

@@ -1,13 +1,8 @@
 import { createTheme } from '@mui/material/styles'
 
-// Trip系ページ（一覧・作成・編集）で共通の背景グラデーション。
-// theme.palette（primary #2563EB系）とは別の演出色のため、paletteには含めずページ用トークンとして定義する。
-// 元々は各ページのsxに直書きされていたが、3ページとも同一の値だったためここに集約した。
 export const pageBackgroundGradient =
   'radial-gradient(circle at 15% 0%, rgba(20,184,166,0.16), transparent 45%), radial-gradient(circle at 100% 20%, rgba(249,115,22,0.12), transparent 40%), #F4F7F6'
 
-// 見出しのアイコンバッジ（56x56の丸角ボックス）に使うグラデーション。pageBackgroundGradientと同様に
-// 元は各ページに直書きされていたもの。
 export const iconBadgeGradient = 'linear-gradient(135deg, #14B8A6, #0F766E)'
 
 // アプリ全体で使うMUIテーマ

@@ -9,7 +9,6 @@ import { useTrip, useUpdateTrip } from '../features/trips/hooks/tripQueries'
 import { extractErrorMessage } from '@shared/api/error'
 import type { TripCreateFormValues } from '@shared/schemas/tripCreateSchema'
 
-// URLのidはユーザーが自由に書き換えられるため、正の整数であることを確認してから使う
 function parseTripId(rawId: string | undefined): number | undefined {
   if (!rawId) {
     return undefined

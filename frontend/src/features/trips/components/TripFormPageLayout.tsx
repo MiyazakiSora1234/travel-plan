@@ -6,14 +6,11 @@ interface TripFormPageLayoutProps {
   icon: ReactNode
   title: string
   subtitle: string
-  // 送信エラーの通知。nullなら非表示。
   error: string | null
   onDismissError: () => void
   children: ReactNode
 }
 
-// Trip作成・編集ページで共通のシェル（背景・アイコンバッジ・見出し・Paper・エラー通知）。
-// 元々TripCreatePage/TripEditPageにそれぞれ直書きされていた、見た目に差のないレイアウト部分を集約したもの。
 export function TripFormPageLayout({
   icon,
   title,

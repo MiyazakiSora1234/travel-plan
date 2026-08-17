@@ -16,8 +16,6 @@ const EMPTY_VALUES: TripCreateFormValues = {
 }
 
 interface TripFormProps {
-  // 更新画面で既存データを反映する場合に指定する。APIから非同期に取得するため、
-  // useFormのdefaultValuesには直接渡さず、値が届いたらreset()で反映する。
   defaultValues?: TripCreateFormValues
   onSubmit: (values: TripCreateFormValues) => void
   onCancel: () => void
@@ -26,7 +24,6 @@ interface TripFormProps {
   formAriaLabel: string
 }
 
-// 旅行計画の登録・更新で共通利用するフォーム。バリデーションはZodスキーマ（tripCreateSchema）に委譲する
 export function TripForm({
   defaultValues,
   onSubmit,
