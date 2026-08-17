@@ -1,77 +1,51 @@
-Run npm run test
+#16 [build 5/6] COPY frontend ./
+#16 DONE 3.6s
 
-> frontend@0.0.0 test
-> vitest run
-
-
- RUN  v4.1.10 /home/runner/work/travel-plan/travel-plan/frontend
-
- ❯ src/features/trips/components/TripForm.test.tsx (0 test)
- ❯ src/pages/TripListPage.test.tsx (0 test)
- ❯ src/pages/TripEditPage.test.tsx (0 test)
- ✓ src/features/trips/components/TripFormPageLayout.test.tsx (4 tests) 383ms
-
-⎯⎯⎯⎯⎯⎯ Failed Suites 3 ⎯⎯⎯⎯⎯⎯⎯
-
- FAIL  src/pages/TripEditPage.test.tsx [ src/pages/TripEditPage.test.tsx ]
-Error: Failed to resolve import "zod" from "../shared/src/schemas/tripCreateSchema.ts". Does the file exist?
-  Plugin: vite:import-analysis
-  File: /home/runner/work/travel-plan/travel-plan/shared/src/schemas/tripCreateSchema.ts:1:18
-  1  |  import { z } from "zod";
-     |                     ^
-  2  |  import { TRIP_MEMO_MAX_LENGTH, TRIP_NAME_MAX_LENGTH } from "../constants/trip";
-  3  |  /**
- ❯ TransformPluginContext._formatLog node_modules/vite/dist/node/chunks/node.js:31066:39
- ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/node.js:31063:14
- ❯ normalizeUrl node_modules/vite/dist/node/chunks/node.js:28008:18
- ❯ node_modules/vite/dist/node/chunks/node.js:28076:30
- ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:28044:4
- ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:30851:14
- ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:20619:26
- ❯ fetchModule node_modules/vite/dist/node/chunks/node.js:34251:15
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
-
- FAIL  src/pages/TripListPage.test.tsx [ src/pages/TripListPage.test.tsx ]
-Error: Failed to resolve import "axios" from "../shared/src/api/error.ts". Does the file exist?
-  Plugin: vite:import-analysis
-  File: /home/runner/work/travel-plan/travel-plan/shared/src/api/error.ts:1:18
-  1  |  import axios from "axios";
-     |                     ^
-  2  |  export function isApiErrorResponse(value) {
-  3  |  	return typeof value === "object" && value !== null && "code" in value && "message" in value && "errors" in value;
- ❯ TransformPluginContext._formatLog node_modules/vite/dist/node/chunks/node.js:31066:39
- ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/node.js:31063:14
- ❯ normalizeUrl node_modules/vite/dist/node/chunks/node.js:28008:18
- ❯ node_modules/vite/dist/node/chunks/node.js:28076:30
- ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:28044:4
- ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:30851:14
- ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:20619:26
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
-
- FAIL  src/features/trips/components/TripForm.test.tsx [ src/features/trips/components/TripForm.test.tsx ]
-Error: Failed to resolve import "zod" from "../shared/src/schemas/tripCreateSchema.ts". Does the file exist?
-  Plugin: vite:import-analysis
-  File: /home/runner/work/travel-plan/travel-plan/shared/src/schemas/tripCreateSchema.ts:1:18
-  1  |  import { z } from "zod";
-     |                     ^
-  2  |  import { TRIP_MEMO_MAX_LENGTH, TRIP_NAME_MAX_LENGTH } from "../constants/trip";
-  3  |  /**
- ❯ TransformPluginContext._formatLog node_modules/vite/dist/node/chunks/node.js:31066:39
- ❯ TransformPluginContext.error node_modules/vite/dist/node/chunks/node.js:31063:14
- ❯ normalizeUrl node_modules/vite/dist/node/chunks/node.js:28008:18
- ❯ node_modules/vite/dist/node/chunks/node.js:28076:30
- ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:28044:4
- ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:30851:14
- ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:20619:26
-
-⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
-
-
- Test Files  3 failed | 1 passed (4)
-      Tests  4 passed (4)
-   Start at  13:55:51
-   Duration  4.89s (transform 323ms, setup 611ms, import 804ms, tests 383ms, environment 3.74s)
-
-Error: Process completed with exit code 1.
+#17 [build 6/6] RUN npm run build
+#17 0.148 
+#17 0.148 > frontend@0.0.0 build
+#17 0.148 > tsc -b && vite build
+#17 0.148 
+#17 3.086 src/features/trips/api/tripsApi.ts(1,35): error TS2307: Cannot find module '@shared/api/trips' or its corresponding type declarations.
+#17 3.087 src/features/trips/components/TripCard.tsx(5,56): error TS2307: Cannot find module '@shared/utils/date' or its corresponding type declarations.
+#17 3.087 src/features/trips/components/TripCard.tsx(6,27): error TS2307: Cannot find module '@shared/types/trip' or its corresponding type declarations.
+#17 3.087 src/features/trips/components/TripForm.tsx(8,61): error TS2307: Cannot find module '@shared/schemas/tripCreateSchema' or its corresponding type declarations.
+#17 3.087 src/features/trips/components/TripForm.tsx(9,60): error TS2307: Cannot find module '@shared/constants/trip' or its corresponding type declarations.
+#17 3.087 src/features/trips/hooks/tripQueries.ts(1,35): error TS2307: Cannot find module '@shared/query/trips' or its corresponding type declarations.
+#17 3.087 src/lib/apiClient.ts(1,33): error TS2307: Cannot find module '@shared/api/client' or its corresponding type declarations.
+#17 3.087 src/pages/TripCreatePage.tsx(7,37): error TS2307: Cannot find module '@shared/api/error' or its corresponding type declarations.
+#17 3.087 src/pages/TripCreatePage.tsx(8,43): error TS2307: Cannot find module '@shared/schemas/tripCreateSchema' or its corresponding type declarations.
+#17 3.087 src/pages/TripCreatePage.tsx(32,19): error TS7006: Parameter 'error' implicitly has an 'any' type.
+#17 3.087 src/pages/TripEditPage.test.tsx(9,27): error TS2307: Cannot find module '@shared/types/trip' or its corresponding type declarations.
+#17 3.087 src/pages/TripEditPage.tsx(9,37): error TS2307: Cannot find module '@shared/api/error' or its corresponding type declarations.
+#17 3.087 src/pages/TripEditPage.tsx(10,43): error TS2307: Cannot find module '@shared/schemas/tripCreateSchema' or its corresponding type declarations.
+#17 3.087 src/pages/TripEditPage.tsx(49,19): error TS7006: Parameter 'err' implicitly has an 'any' type.
+#17 3.087 src/pages/TripListPage.test.tsx(7,27): error TS2307: Cannot find module '@shared/types/trip' or its corresponding type declarations.
+#17 3.087 src/pages/TripListPage.tsx(18,37): error TS2307: Cannot find module '@shared/api/error' or its corresponding type declarations.
+#17 3.087 src/pages/TripListPage.tsx(113,25): error TS7006: Parameter 'trip' implicitly has an 'any' type.
+#17 ERROR: process "/bin/sh -c npm run build" did not complete successfully: exit code: 2
+------
+ > [build 6/6] RUN npm run build:
+3.087 src/pages/TripCreatePage.tsx(7,37): error TS2307: Cannot find module '@shared/api/error' or its corresponding type declarations.
+3.087 src/pages/TripCreatePage.tsx(8,43): error TS2307: Cannot find module '@shared/schemas/tripCreateSchema' or its corresponding type declarations.
+3.087 src/pages/TripCreatePage.tsx(32,19): error TS7006: Parameter 'error' implicitly has an 'any' type.
+3.087 src/pages/TripEditPage.test.tsx(9,27): error TS2307: Cannot find module '@shared/types/trip' or its corresponding type declarations.
+3.087 src/pages/TripEditPage.tsx(9,37): error TS2307: Cannot find module '@shared/api/error' or its corresponding type declarations.
+3.087 src/pages/TripEditPage.tsx(10,43): error TS2307: Cannot find module '@shared/schemas/tripCreateSchema' or its corresponding type declarations.
+3.087 src/pages/TripEditPage.tsx(49,19): error TS7006: Parameter 'err' implicitly has an 'any' type.
+3.087 src/pages/TripListPage.test.tsx(7,27): error TS2307: Cannot find module '@shared/types/trip' or its corresponding type declarations.
+3.087 src/pages/TripListPage.tsx(18,37): error TS2307: Cannot find module '@shared/api/error' or its corresponding type declarations.
+3.087 src/pages/TripListPage.tsx(113,25): error TS7006: Parameter 'trip' implicitly has an 'any' type.
+------
+Dockerfile.prod:16
+--------------------
+  14 |     ARG VITE_API_BASE_URL
+  15 |     ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+  16 | >>> RUN npm run build
+  17 |     
+  18 |     FROM nginx:1.27-alpine AS runtime
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 2
+Reference
+Check build summary support
+Error: buildx failed with: ERROR: failed to build: failed to solve: process "/bin/sh -c npm run build" did not complete successfully: exit code: 2
